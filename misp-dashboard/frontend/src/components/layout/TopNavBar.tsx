@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import type { TelemetryPayload } from "../../types/threat";
+import type { AdminStateResponse, TelemetryPayload } from "../../types/threat";
 import { useSystemMetrics } from "../../hooks/useSystemMetrics";
 import {
   CONNECTION_STATUS_TEXT,
   COUNTER_ANIMATION_DURATION_MS,
+  DATA_SOURCE_LABELS,
+  ROUTES,
   TOPBAR_FLASH_MS,
 } from "../../utils/constants";
 import AnimatedCounter from "../ui/AnimatedCounter";
@@ -13,6 +15,9 @@ import SecretTrigger from "../ui/SecretTrigger";
 type TopNavBarProps = {
   telemetry: TelemetryPayload | null;
   isConnected: boolean;
+  adminState: AdminStateResponse | null;
+  currentPath: string;
+  onNavigate: (path: string) => void;
 };
 
 function MetricPill({
@@ -45,9 +50,53 @@ function MetricPill({
   );
 }
 
-export default function TopNavBar({ telemetry, isConnected }: TopNavBarProps) {
+function TextPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="panel-shell flex min-w-[140px] flex-col gap-1 px-4 py-2">
+      <span className="text-[10px] uppercase tracking-[0.28em] text-slate-400">{label}</span>
+      <span className="mono-ui truncate text-sm text-slate-100">{value}</span>
+    </div>
+  );
+}
+
+function NavButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`rounded-md border px-3 py-2 text-xs uppercase tracking-[0.24em] transition ${
+        active
+          ? "border-emerald-400/35 bg-emerald-400/10 text-emerald-200"
+          : "border-white/10 bg-white/4 text-slate-400 hover:border-white/20 hover:text-slate-200"
+      }`}
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  );
+}
+
+export default function TopNavBar({
+  telemetry,
+  isConnected,
+  adminState,
+  currentPath,
+  onNavigate,
+}: TopNavBarProps) {
   const [flashActive, setFlashActive] = useState(false);
   const metrics = useSystemMetrics(telemetry);
+  const dataSourceLabel =
+    DATA_SOURCE_LABELS[
+      (adminState?.state.effective_source ?? "mock") as keyof typeof DATA_SOURCE_LABELS
+    ] ?? adminState?.state.effective_source ?? "DEMO SIMULATION";
+  const activeHqCount = adminState?.state.active_hq_ids.length ?? 0;
 
   useEffect(() => {
     if (!flashActive) {
@@ -73,12 +122,26 @@ export default function TopNavBar({ telemetry, isConnected }: TopNavBarProps) {
       transition={{ duration: 0.2 }}
     >
       <div className="mx-auto flex max-w-[1800px] items-center justify-between gap-4">
-        <div className="mono-ui flex min-w-[220px] items-center gap-2 text-sm tracking-[0.22em] text-slate-200">
-          <span className="text-[var(--color-accent)]">MISP-SOC // LIVE</span>
-          <span className="cursor-blink text-[var(--color-accent)]">_</span>
+        <div className="flex min-w-[220px] items-center gap-4">
+          <div className="mono-ui flex items-center gap-2 text-sm tracking-[0.22em] text-slate-200">
+            <span className="text-[var(--color-accent)]">MISP-SOC // LIVE</span>
+            <span className="cursor-blink text-[var(--color-accent)]">_</span>
+          </div>
+          <div className="hidden items-center gap-2 lg:flex">
+            <NavButton
+              label="Dashboard"
+              active={!currentPath.startsWith(ROUTES.admin)}
+              onClick={() => onNavigate(ROUTES.dashboard)}
+            />
+            <NavButton
+              label="Admin"
+              active={currentPath.startsWith(ROUTES.admin)}
+              onClick={() => onNavigate(ROUTES.admin)}
+            />
+          </div>
         </div>
 
-        <div className="hidden items-center gap-3 md:flex">
+        <div className="hidden items-center gap-3 xl:flex">
           <MetricPill
             label="Ingestion Rate"
             value={metrics.ingestionRateValue}
@@ -94,6 +157,16 @@ export default function TopNavBar({ telemetry, isConnected }: TopNavBarProps) {
             value={metrics.dbNodesValue}
             suffix="online"
             decimals={0}
+          />
+          <MetricPill
+            label="HQ Coverage"
+            value={activeHqCount}
+            suffix="nodes"
+            decimals={0}
+          />
+          <TextPill
+            label="Mode"
+            value={dataSourceLabel}
           />
         </div>
 

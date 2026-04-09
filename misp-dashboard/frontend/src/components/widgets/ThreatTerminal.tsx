@@ -71,7 +71,7 @@ export default function ThreatTerminal({
                   [{threat.type}]
                 </span>
                 <span className="truncate text-[11px] text-slate-300">
-                  {threat.src_ip} -&gt; {threat.malware_family}
+                  {threat.src_ip} -&gt; {threat.malware_family} // {threat.target_hq_name}
                 </span>
               </button>
             ))}

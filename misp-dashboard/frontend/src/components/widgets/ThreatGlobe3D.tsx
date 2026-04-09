@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Globe, { type GlobeMethods } from "react-globe.gl";
-import type { ThreatPayload } from "../../types/threat";
+import type { HqNode, ThreatPayload } from "../../types/threat";
 import {
   ARC_DECAY_MS,
   ARC_STROKE_BY_SEVERITY,
@@ -19,7 +19,6 @@ import {
   GLOBE_RESIZE_FALLBACK,
   GLOBE_TEXTURE_URL,
   GLOBE_VIEW_ALTITUDE,
-  HOME_SERVER,
   MAX_GLOBE_ARCS,
   MITIGATED_COLOR,
   SEVERITY_COLORS,
@@ -27,6 +26,7 @@ import {
 
 type ThreatGlobe3DProps = {
   threats: ThreatPayload[];
+  activeHqs: HqNode[];
   mitigatedIds?: Set<string>;
 };
 
@@ -37,6 +37,7 @@ type ArcThreat = {
 
 export default function ThreatGlobe3D({
   threats,
+  activeHqs,
   mitigatedIds = new Set<string>(),
 }: ThreatGlobe3DProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -135,11 +136,11 @@ export default function ThreatGlobe3D({
       insertedAt,
       startLat: threat.src_geo.lat,
       startLng: threat.src_geo.lon,
-      endLat: HOME_SERVER.lat,
-      endLng: HOME_SERVER.lon,
+      endLat: threat.dst_geo.lat,
+      endLng: threat.dst_geo.lon,
       color: mitigatedIds.has(threat.id) ? MITIGATED_COLOR : severityColor,
       stroke: ARC_STROKE_BY_SEVERITY[threat.severity] ?? ARC_STROKE_BY_SEVERITY.Low,
-      label: `${threat.type} | ${threat.src_geo.city}, ${threat.src_geo.country}`,
+      label: `${threat.type} | ${threat.src_geo.city}, ${threat.src_geo.country} -> ${threat.target_hq_name}`,
     };
   });
 
@@ -163,7 +164,9 @@ export default function ThreatGlobe3D({
           <h2 className="mono-ui text-sm tracking-[0.22em] text-[var(--color-accent)]">
             GLOBAL ATTACK SURFACE
           </h2>
-          <p className="text-xs text-slate-400">Inbound indicators converging on NYC HQ</p>
+          <p className="text-xs text-slate-400">
+            Routing live indicators across {Math.max(activeHqs.length, 1)} active HQ nodes
+          </p>
         </div>
         <div className="orbital-pulse rounded-md border border-emerald-400/20 px-2 py-1 text-[10px] uppercase tracking-[0.24em] text-emerald-300">
           {arcs.length} active arcs
@@ -202,11 +205,11 @@ export default function ThreatGlobe3D({
           pointAltitude={GLOBE_POINT_ALTITUDE}
           pointRadius={GLOBE_POINT_RADIUS}
           pointLabel="label"
-          labelsData={[HOME_SERVER]}
+          labelsData={activeHqs}
           labelLat="lat"
           labelLng="lon"
-          labelText="label"
-          labelColor={() => "#00ff88"}
+          labelText="name"
+          labelColor={(hq) => String((hq as HqNode).accent)}
           labelAltitude={GLOBE_LABEL_ALTITUDE}
           labelSize={GLOBE_LABEL_SIZE}
           labelDotRadius={GLOBE_LABEL_DOT_RADIUS}

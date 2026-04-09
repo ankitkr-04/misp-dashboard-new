@@ -1,9 +1,11 @@
 import hashlib
 import random
+import zlib
 from datetime import datetime, timezone
+from ipaddress import ip_address
 from uuid import uuid4
 
-from app.models.schemas import GeoLocation, ThreatPayload
+from app.models.schemas import GeoLocation, HQNode, ThreatPayload
 
 
 MALICIOUS_IPS = [
@@ -105,6 +107,7 @@ CITY_CATALOG = [
     GeoLocation(lat=31.2304, lon=121.4737, city="Shanghai", country="CN"),
     GeoLocation(lat=19.0760, lon=72.8777, city="Mumbai", country="IN"),
     GeoLocation(lat=28.6139, lon=77.2090, city="Delhi", country="IN"),
+    GeoLocation(lat=12.9716, lon=77.5946, city="Bengaluru", country="IN"),
     GeoLocation(lat=35.6895, lon=139.6917, city="Tokyo", country="JP"),
     GeoLocation(lat=37.5665, lon=126.9780, city="Seoul", country="KR"),
     GeoLocation(lat=1.3521, lon=103.8198, city="Singapore", country="SG"),
@@ -170,10 +173,24 @@ THREAT_TYPES = [
     "Botnet",
 ]
 
+SIMULATION_PROFILES = [
+    "balanced",
+    "ddos",
+    "ransomware",
+    "phishing",
+    "botnet",
+]
+
+LIVE_DATA_SOURCES = ["public_misp"]
 SEVERITY_LEVELS = ["Critical", "High", "Medium", "Low"]
 SEVERITY_WEIGHTS = [0.10, 0.25, 0.40, 0.25]
 BURST_SEVERITY_WEIGHTS = [0.45, 0.35, 0.15, 0.05]
-
+MISP_THREAT_LEVEL_MAP = {
+    1: "Critical",
+    2: "High",
+    3: "Medium",
+    4: "Low",
+}
 MISP_TAGS = [
     "misp:tlp:amber",
     "misp:tlp:red",
@@ -197,41 +214,237 @@ MISP_TAGS = [
     "ioc:ipv4",
 ]
 
-HOME_SERVER = {
-    "ip": "10.0.0.1",
-    "lat": 40.7128,
-    "lon": -74.0060,
-    "city": "New York",
-    "country": "US",
+PROFILE_TYPE_WEIGHTS = {
+    "balanced": {
+        "Ransomware": 1,
+        "Phishing": 1,
+        "DDoS": 1,
+        "C2": 1,
+        "Exploit": 1,
+        "Botnet": 1,
+    },
+    "ddos": {
+        "Ransomware": 0.4,
+        "Phishing": 0.4,
+        "DDoS": 4.8,
+        "C2": 1.8,
+        "Exploit": 0.6,
+        "Botnet": 3.4,
+    },
+    "ransomware": {
+        "Ransomware": 5.0,
+        "Phishing": 1.0,
+        "DDoS": 0.4,
+        "C2": 1.8,
+        "Exploit": 2.2,
+        "Botnet": 0.8,
+    },
+    "phishing": {
+        "Ransomware": 0.6,
+        "Phishing": 5.0,
+        "DDoS": 0.4,
+        "C2": 2.0,
+        "Exploit": 0.6,
+        "Botnet": 0.8,
+    },
+    "botnet": {
+        "Ransomware": 0.5,
+        "Phishing": 0.6,
+        "DDoS": 2.4,
+        "C2": 3.8,
+        "Exploit": 0.8,
+        "Botnet": 4.7,
+    },
 }
 
+HQ_NODES = [
+    HQNode(
+        id="nyc",
+        name="NYC HQ",
+        ip="10.0.0.1",
+        lat=40.7128,
+        lon=-74.0060,
+        city="New York",
+        country="US",
+        accent="#00ff88",
+    ),
+    HQNode(
+        id="mumbai",
+        name="Mumbai SOC",
+        ip="10.0.10.1",
+        lat=19.0760,
+        lon=72.8777,
+        city="Mumbai",
+        country="IN",
+        accent="#38bdf8",
+    ),
+    HQNode(
+        id="bengaluru",
+        name="Bengaluru IR",
+        ip="10.0.20.1",
+        lat=12.9716,
+        lon=77.5946,
+        city="Bengaluru",
+        country="IN",
+        accent="#f97316",
+    ),
+    HQNode(
+        id="delhi",
+        name="Delhi Hub",
+        ip="10.0.30.1",
+        lat=28.6139,
+        lon=77.2090,
+        city="Delhi",
+        country="IN",
+        accent="#a855f7",
+    ),
+    HQNode(
+        id="singapore",
+        name="Singapore Edge",
+        ip="10.0.40.1",
+        lat=1.3521,
+        lon=103.8198,
+        city="Singapore",
+        country="SG",
+        accent="#14b8a6",
+    ),
+    HQNode(
+        id="london",
+        name="London Relay",
+        ip="10.0.50.1",
+        lat=51.5072,
+        lon=-0.1276,
+        city="London",
+        country="GB",
+        accent="#eab308",
+    ),
+]
+HQ_BY_ID = {hq.id: hq for hq in HQ_NODES}
 
-def _home_server_geo() -> GeoLocation:
-    return GeoLocation(
-        lat=HOME_SERVER["lat"],
-        lon=HOME_SERVER["lon"],
-        city=HOME_SERVER["city"],
-        country=HOME_SERVER["country"],
-    )
+
+def _geo_from_hq(hq: HQNode) -> GeoLocation:
+    return GeoLocation(lat=hq.lat, lon=hq.lon, city=hq.city, country=hq.country)
 
 
-def _weighted_severity(weights: list[float]) -> str:
-    return random.choices(SEVERITY_LEVELS, weights=weights, k=1)[0]
+def _allowed_values(available: list[str], selected: list[str] | None) -> list[str]:
+    if not selected:
+        return available
+
+    filtered = [value for value in available if value in selected]
+    return filtered or available
 
 
-def _build_hash(seed: str) -> str:
+def _weighted_choice(choices: list[str], weights: list[float], allowed: list[str] | None = None) -> str:
+    allowed_choices = _allowed_values(choices, allowed)
+    filtered_weights = [weights[choices.index(choice)] for choice in allowed_choices]
+    return random.choices(allowed_choices, weights=filtered_weights, k=1)[0]
+
+
+def _pick_threat_type(profile: str, enabled_types: list[str] | None) -> str:
+    profile_name = profile if profile in PROFILE_TYPE_WEIGHTS else "balanced"
+    allowed = _allowed_values(THREAT_TYPES, enabled_types)
+    weights = [PROFILE_TYPE_WEIGHTS[profile_name][threat_type] for threat_type in allowed]
+    return random.choices(allowed, weights=weights, k=1)[0]
+
+
+def select_active_hqs(active_hq_ids: list[str] | None) -> list[HQNode]:
+    if not active_hq_ids:
+        return [HQ_BY_ID["nyc"]]
+
+    resolved = [HQ_BY_ID[hq_id] for hq_id in active_hq_ids if hq_id in HQ_BY_ID]
+    return resolved or [HQ_BY_ID["nyc"]]
+
+
+def pick_target_hq(active_hq_ids: list[str] | None) -> HQNode:
+    return random.choice(select_active_hqs(active_hq_ids))
+
+
+def is_ip_value(value: str) -> bool:
+    try:
+        ip_address(value)
+    except ValueError:
+        return False
+    return True
+
+
+def build_hash(seed: str) -> str:
     return hashlib.sha256(seed.encode("utf-8")).hexdigest()
 
 
-def _build_threat(severity_weights: list[float]) -> ThreatPayload:
+def coerce_sha256(value: str) -> str:
+    if len(value) == 64 and all(char in "0123456789abcdef" for char in value.lower()):
+        return value.lower()
+
+    return build_hash(value)
+
+
+def stable_event_id(seed: str) -> int:
+    return zlib.crc32(seed.encode("utf-8")) % 1_000_000
+
+
+def severity_from_misp_level(level: int | str | None) -> str:
+    try:
+        numeric_level = int(level) if level is not None else 2
+    except (TypeError, ValueError):
+        numeric_level = 2
+
+    return MISP_THREAT_LEVEL_MAP.get(numeric_level, "Medium")
+
+
+def infer_threat_type(text: str) -> str:
+    lowered = text.lower()
+
+    if any(keyword in lowered for keyword in ("ransom", "locker", "extortion", "lockbit", "revil")):
+        return "Ransomware"
+    if any(keyword in lowered for keyword in ("phish", "credential", "spoof", "mail")):
+        return "Phishing"
+    if any(keyword in lowered for keyword in ("ddos", "flood", "traffic spike", "amplification")):
+        return "DDoS"
+    if any(keyword in lowered for keyword in ("c2", "beacon", "command and control", "callback")):
+        return "C2"
+    if any(keyword in lowered for keyword in ("botnet", "mirai", "infected hosts", "loader")):
+        return "Botnet"
+    if any(keyword in lowered for keyword in ("exploit", "zero-day", "vulnerability", "payload")):
+        return "Exploit"
+
+    return random.choice(THREAT_TYPES)
+
+
+def infer_malware_family(text: str) -> str:
+    lowered = text.lower()
+    for family in MALWARE_FAMILIES:
+        if family.lower() in lowered:
+            return family
+
+    return random.choice(MALWARE_FAMILIES)
+
+
+def fallback_geo_for_country(country: str | None) -> GeoLocation:
+    if country:
+        country_matches = [city for city in CITY_CATALOG if city.country == country]
+        if country_matches:
+            return random.choice(country_matches)
+
+    return random.choice(CITY_CATALOG)
+
+
+def _build_mock_threat(runtime_state: dict, severity_weights: list[float], source: str) -> ThreatPayload:
     source_geo = random.choice(CITY_CATALOG)
     threat_id = str(uuid4())
-    event_type = random.choice(THREAT_TYPES)
-    severity = _weighted_severity(severity_weights)
+    event_type = _pick_threat_type(
+        runtime_state.get("simulation_profile", "balanced"),
+        runtime_state.get("enabled_threat_types"),
+    )
+    severity = _weighted_choice(
+        SEVERITY_LEVELS,
+        severity_weights,
+        runtime_state.get("enabled_severities"),
+    )
     malware_family = random.choice(MALWARE_FAMILIES)
     timestamp = datetime.now(timezone.utc).isoformat()
     tag_count = random.randint(2, 4)
     misp_event_id = random.randint(100000, 999999)
+    target_hq = pick_target_hq(runtime_state.get("active_hq_ids"))
 
     return ThreatPayload(
         id=threat_id,
@@ -241,17 +454,20 @@ def _build_threat(severity_weights: list[float]) -> ThreatPayload:
         malware_family=malware_family,
         src_ip=random.choice(MALICIOUS_IPS),
         src_geo=source_geo,
-        dst_ip=HOME_SERVER["ip"],
-        dst_geo=_home_server_geo(),
-        hash_sha256=_build_hash(f"{threat_id}:{source_geo.city}:{malware_family}:{timestamp}"),
+        dst_ip=target_hq.ip,
+        dst_geo=_geo_from_hq(target_hq),
+        hash_sha256=build_hash(f"{threat_id}:{source_geo.city}:{malware_family}:{timestamp}"),
         misp_event_id=misp_event_id,
         tags=random.sample(MISP_TAGS, k=tag_count),
+        source=source,
+        target_hq_id=target_hq.id,
+        target_hq_name=target_hq.name,
     )
 
 
-def generate_threat() -> ThreatPayload:
-    return _build_threat(SEVERITY_WEIGHTS)
+def generate_threat(runtime_state: dict) -> ThreatPayload:
+    return _build_mock_threat(runtime_state, SEVERITY_WEIGHTS, "mock")
 
 
-def generate_burst(count: int) -> list[ThreatPayload]:
-    return [_build_threat(BURST_SEVERITY_WEIGHTS) for _ in range(count)]
+def generate_burst(count: int, runtime_state: dict) -> list[ThreatPayload]:
+    return [_build_mock_threat(runtime_state, BURST_SEVERITY_WEIGHTS, "mock") for _ in range(count)]

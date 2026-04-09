@@ -1,10 +1,12 @@
 export const WS_URL = "ws://localhost:8000/ws";
 export const API_BASE = "http://localhost:8000/api";
-export const HOME_SERVER = { lat: 40.7128, lon: -74.006, label: "NYC HQ" } as const;
+export const ADMIN_STATE_ENDPOINT = `${API_BASE}/admin/state`;
+export const ADMIN_REFRESH_FEED_ENDPOINT = `${API_BASE}/admin/refresh-feed`;
 export const MAX_TERMINAL_LINES = 120;
 export const MAX_GLOBE_ARCS = 50;
 export const ARC_DECAY_MS = 5000;
 export const WS_RECONNECT_DELAY_MS = 3000;
+export const ADMIN_STATE_POLL_INTERVAL_MS = 5000;
 export const COUNTER_ANIMATION_DURATION_MS = 500;
 export const ANALYSIS_TYPEWRITER_SPEED_MS = 14;
 export const VELOCITY_SAMPLE_INTERVAL_MS = 1000;
@@ -30,9 +32,39 @@ export const GLOBE_DECAY_SWEEP_MS = 500;
 export const GLOBE_RESIZE_FALLBACK = { width: 640, height: 640 };
 export const MITIGATED_COLOR = "#22c55e";
 export const MODAL_SPRING = { type: "spring", stiffness: 180, damping: 22 } as const;
+export const ROUTES = {
+  dashboard: "/",
+  admin: "/admin",
+} as const;
+export const DATA_SOURCE_LABELS = {
+  mock: "DEMO SIMULATION",
+  public_misp: "PUBLIC MISP FEED",
+} as const;
+export const SIMULATION_PROFILE_LABELS = {
+  balanced: "Balanced",
+  ddos: "DDoS Storm",
+  ransomware: "Ransomware Sweep",
+  phishing: "Phishing Wave",
+  botnet: "Botnet Mesh",
+} as const;
+export const ADMIN_PILLAR_COPY = {
+  demo:
+    "Demo mode uses the in-memory generator and honors your profile, severity, and threat-type toggles.",
+  live:
+    "Live mode pulls real indicators from the public MISP feed and enriches IPs with lightweight geolocation.",
+} as const;
+export const STREAM_INTERVAL_MIN_SECONDS = 0.2;
+export const STREAM_INTERVAL_MAX_SECONDS = 10;
+export const STREAM_INTERVAL_STEP_SECONDS = 0.1;
 export const CONNECTION_STATUS_TEXT = {
   connected: "LINK STABLE",
   disconnected: "LINK LOST",
+} as const;
+export const LIVE_FEED_STATUS_LABELS = {
+  idle: "Idle",
+  ready: "Ready",
+  empty: "Empty",
+  error: "Error",
 } as const;
 export const SEVERITY_COLORS = {
   Critical: "#ef4444",

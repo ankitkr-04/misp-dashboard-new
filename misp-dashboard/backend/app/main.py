@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import routes
 from app.core.config import settings
 from app.models.schemas import ThreatPayload, WSMessage
+from app.services.control_plane import control_plane
+from app.services.live_feed_service import live_feed_service
 from app.services.telemetry_service import TelemetryService
 from app.services.threat_generator import generate_burst, generate_threat
 from app.services.websocket_manager import WebSocketManager
@@ -50,9 +52,10 @@ async def _stream_threats() -> None:
             await asyncio.sleep(0.25)
             continue
 
-        if routes.god_mode_active:
-            burst = generate_burst(settings.GOD_MODE_BURST_COUNT)
-            routes.god_mode_active = False
+        runtime_state = control_plane.get_runtime_snapshot()
+
+        if control_plane.consume_god_mode():
+            burst = generate_burst(settings.GOD_MODE_BURST_COUNT, runtime_state)
 
             for threat in burst:
                 telemetry_service.increment()
@@ -66,7 +69,13 @@ async def _stream_threats() -> None:
 
             continue
 
-        threat = generate_threat()
+        if runtime_state["demo_mode"]:
+            threat = generate_threat(runtime_state)
+        else:
+            threat = await asyncio.to_thread(live_feed_service.next_threat, runtime_state)
+            if threat is None:
+                threat = generate_threat(runtime_state | {"simulation_profile": "balanced"})
+
         telemetry_service.increment()
         _threat_counter += 1
         await _broadcast_ws_message("threat", threat)
@@ -74,7 +83,7 @@ async def _stream_threats() -> None:
         if _threat_counter % 5 == 0:
             await _broadcast_telemetry()
 
-        await asyncio.sleep(settings.WS_BROADCAST_INTERVAL_SECONDS)
+        await asyncio.sleep(runtime_state["ws_broadcast_interval_seconds"])
 
 
 async def _ensure_stream_task() -> None:

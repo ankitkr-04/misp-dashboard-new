@@ -2,12 +2,13 @@ import ThreatTerminal from "../widgets/ThreatTerminal";
 import ThreatGlobe3D from "../widgets/ThreatGlobe3D";
 import AnalyticsPanel from "../widgets/AnalyticsPanel";
 import ThreatDetailModal from "../widgets/ThreatDetailModal";
-import type { ThreatPayload } from "../../types/threat";
+import type { HqNode, ThreatPayload } from "../../types/threat";
 
 type DashboardGridProps = {
   threats: ThreatPayload[];
   selectedThreat: ThreatPayload | null;
   mitigatedIds: Set<string>;
+  activeHqs: HqNode[];
   onSelectThreat: (threat: ThreatPayload) => void;
   onCloseThreat: () => void;
   onMitigateThreat: (id: string) => void;
@@ -17,6 +18,7 @@ export default function DashboardGrid({
   threats,
   selectedThreat,
   mitigatedIds,
+  activeHqs,
   onSelectThreat,
   onCloseThreat,
   onMitigateThreat,
@@ -30,6 +32,7 @@ export default function DashboardGrid({
         />
         <ThreatGlobe3D
           threats={threats}
+          activeHqs={activeHqs}
           mitigatedIds={mitigatedIds}
         />
         <AnalyticsPanel threats={threats} />

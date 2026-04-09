@@ -20,6 +20,9 @@ export interface ThreatPayload {
   hash_sha256: string;
   misp_event_id: number;
   tags: string[];
+  source: string;
+  target_hq_id: string;
+  target_hq_name: string;
 }
 
 export interface TelemetryPayload {
@@ -32,6 +35,63 @@ export interface TelemetryPayload {
 export interface WSMessage {
   msg_type: "threat" | "telemetry";
   data: Record<string, unknown>;
+}
+
+export interface HqNode {
+  id: string;
+  name: string;
+  ip: string;
+  lat: number;
+  lon: number;
+  city: string;
+  country: string;
+  accent: string;
+}
+
+export interface LiveFeedStatusPayload {
+  data_source: string;
+  loaded_count: number;
+  last_refresh: string | null;
+  last_error: string | null;
+  status: string;
+}
+
+export interface AdminStatePayload {
+  demo_mode: boolean;
+  data_source: string;
+  simulation_profile: string;
+  active_hq_ids: string[];
+  enabled_threat_types: string[];
+  enabled_severities: string[];
+  auto_refresh_live_feed: boolean;
+  ws_broadcast_interval_seconds: number;
+  effective_source: string;
+  otx_api_key_configured: boolean;
+  live_feed_status: LiveFeedStatusPayload;
+}
+
+export interface AdminCatalogPayload {
+  data_sources: string[];
+  simulation_profiles: string[];
+  threat_types: string[];
+  severities: string[];
+  hqs: HqNode[];
+}
+
+export interface AdminStateResponse {
+  state: AdminStatePayload;
+  catalog: AdminCatalogPayload;
+}
+
+export interface AdminStateUpdateRequest {
+  demo_mode?: boolean;
+  data_source?: string;
+  simulation_profile?: string;
+  active_hq_ids?: string[];
+  enabled_threat_types?: string[];
+  enabled_severities?: string[];
+  auto_refresh_live_feed?: boolean;
+  ws_broadcast_interval_seconds?: number;
 }
 
 declare module "react-globe.gl" {
