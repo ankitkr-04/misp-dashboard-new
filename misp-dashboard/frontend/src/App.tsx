@@ -41,6 +41,7 @@ export default function App() {
 
     return adminState.catalog.hqs.filter((hq) => adminState.state.active_hq_ids.includes(hq.id));
   }, [adminState]);
+  const aiEnabled = adminState?.state.ai_features_enabled ?? true;
 
   const relatedThreatHistory = useMemo(() => {
     if (!selectedThreatHistoryType) {
@@ -108,6 +109,7 @@ export default function App() {
       ) : (
         <DashboardGrid
           threats={threats}
+          aiEnabled={aiEnabled}
           selectedThreat={selectedThreat}
           selectedThreatHistoryType={selectedThreatHistoryType}
           relatedThreatHistory={relatedThreatHistory}

@@ -13,7 +13,11 @@ import {
 import type { ThreatPayload } from "../../types/threat";
 import {
   ANALYTICS_LIST_LIMIT,
+  INSIGHT_LOOKBACK_SECONDS,
+  INSIGHT_ROTATION_INTERVAL_MS,
   SEVERITY_COLORS,
+  SPARKLINE_POINTS,
+  SPARKLINE_WINDOW_SECONDS,
   THREAT_TYPE_COLORS,
   VELOCITY_HISTORY_POINTS,
   VELOCITY_SAMPLE_INTERVAL_MS,
@@ -21,6 +25,7 @@ import {
 
 type AnalyticsPanelProps = {
   threats: ThreatPayload[];
+  aiEnabled: boolean;
   onOpenThreatHistory: (threatType: string) => void;
 };
 
@@ -67,14 +72,109 @@ function countEntries(
     }));
 }
 
+function buildSparklineSeries(
+  threats: ThreatPayload[],
+  field: "target_hq_name" | "malware_family",
+  label: string,
+) {
+  const now = Date.now();
+  const series = Array.from({ length: SPARKLINE_POINTS }, () => 0);
+
+  threats.forEach((threat) => {
+    if (threat[field] !== label) {
+      return;
+    }
+
+    const threatTime = new Date(threat.timestamp).getTime();
+    if (Number.isNaN(threatTime)) {
+      return;
+    }
+
+    const secondsAgo = Math.floor((now - threatTime) / 1000);
+    if (secondsAgo < 0 || secondsAgo >= SPARKLINE_WINDOW_SECONDS) {
+      return;
+    }
+
+    const bucketIndex = SPARKLINE_POINTS - secondsAgo - 1;
+    if (bucketIndex >= 0 && bucketIndex < series.length) {
+      series[bucketIndex] += 1;
+    }
+  });
+
+  return series;
+}
+
+function buildSparklinePath(series: number[]) {
+  const width = 64;
+  const height = 20;
+  const maxValue = Math.max(...series, 1);
+
+  return series
+    .map((value, index) => {
+      const x = (index / Math.max(series.length - 1, 1)) * width;
+      const y = height - (value / maxValue) * (height - 2) - 1;
+      return `${index === 0 ? "M" : "L"} ${x} ${y}`;
+    })
+    .join(" ");
+}
+
+function average(values: number[]) {
+  if (values.length === 0) {
+    return 0;
+  }
+
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function buildInsights(threats: ThreatPayload[], velocityData: VelocityPoint[]) {
+  if (threats.length === 0) {
+    return [
+      "AI Alert: Waiting for enough attacks to form a stable pattern in the current buffer.",
+    ];
+  }
+
+  const now = Date.now();
+  const recentThreats = threats.filter((threat) => {
+    const threatTime = new Date(threat.timestamp).getTime();
+    return !Number.isNaN(threatTime) && now - threatTime <= INSIGHT_LOOKBACK_SECONDS * 1000;
+  });
+  const workingSet = recentThreats.length > 0 ? recentThreats : threats.slice(-24);
+
+  const topType = countEntries(workingSet.map((threat) => threat.type), THREAT_TYPE_COLORS, 1)[0];
+  const topHq = countEntries(workingSet.map((threat) => threat.target_hq_name), null, 1)[0];
+  const topFamily = countEntries(workingSet.map((threat) => threat.malware_family), null, 1)[0];
+  const topCountry = countEntries(workingSet.map((threat) => threat.src_geo.country), null, 1)[0];
+  const criticalCount = workingSet.filter(
+    (threat) => threat.severity === "Critical" || threat.severity === "High",
+  ).length;
+  const highShare = Math.round((criticalCount / Math.max(workingSet.length, 1)) * 100);
+  const latestVelocity = velocityData[velocityData.length - 1]?.value ?? 0;
+  const priorVelocity = average(velocityData.slice(-8, -1).map((point) => point.value));
+  const velocityDelta =
+    priorVelocity > 0 ? Math.round(((latestVelocity - priorVelocity) / priorVelocity) * 100) : 0;
+  const dominantTypeShare = topType
+    ? Math.round((topType.count / Math.max(workingSet.length, 1)) * 100)
+    : 0;
+
+  return [
+    `AI Alert: ${dominantTypeShare}% of recent traffic is ${topType?.label ?? "hostile activity"} targeting ${topHq?.label ?? "the active HQ mesh"}. ${topFamily?.label ?? "Commodity tooling"} is the leading payload family in the current window.`,
+    `AI Alert: ${highShare}% of the last ${workingSet.length} attacks are High or Critical severity, with ${topCountry?.label ?? "multiple source regions"} contributing the largest source share.`,
+    latestVelocity > priorVelocity && priorVelocity > 0
+      ? `AI Alert: Attack velocity is up ${velocityDelta}% versus the recent baseline. ${topHq?.label ?? "The busiest HQ"} is absorbing the sharpest pressure right now.`
+      : `AI Alert: Attack tempo is stable, but ${topFamily?.label ?? "the leading malware family"} remains persistent across the active routes and deserves targeted hunting.`,
+  ];
+}
+
 function StatList({
   title,
   description,
   entries,
+  sparklines = {},
 }: {
   title: string;
   description: string;
   entries: CountEntry[];
+  sparklines?: Record<string, number[]>;
 }) {
   const highest = Math.max(...entries.map((entry) => entry.count), 1);
 
@@ -89,24 +189,48 @@ function StatList({
         <div className="text-sm text-slate-500">No attack samples in buffer yet.</div>
       ) : (
         <div className="space-y-3">
-          {entries.map((entry) => (
-            <div key={entry.label}>
-              <div className="mb-1 flex items-center justify-between gap-3 text-xs">
-                <span className="truncate text-slate-300">{entry.label}</span>
-                <span className="mono-ui text-slate-100">{entry.count}</span>
+          {entries.map((entry) => {
+            const sparkline = sparklines[entry.label] ?? [];
+            const sparklinePath = sparkline.length > 0 ? buildSparklinePath(sparkline) : "";
+
+            return (
+              <div key={entry.label}>
+                <div className="mb-1 flex items-center justify-between gap-3 text-xs">
+                  <span className="truncate text-slate-300">{entry.label}</span>
+                  <div className="flex items-center gap-3">
+                    {sparkline.length > 0 ? (
+                      <svg
+                        width="64"
+                        height="20"
+                        viewBox="0 0 64 20"
+                        className="overflow-visible"
+                      >
+                        <path
+                          d={sparklinePath}
+                          fill="none"
+                          stroke={entry.color}
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    ) : null}
+                    <span className="mono-ui text-slate-100">{entry.count}</span>
+                  </div>
+                </div>
+                <div className="h-2 rounded-full bg-white/6">
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${Math.max((entry.count / highest) * 100, 8)}%`,
+                      backgroundColor: entry.color,
+                      boxShadow: `0 0 16px ${entry.color}33`,
+                    }}
+                  />
+                </div>
               </div>
-              <div className="h-2 rounded-full bg-white/6">
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${Math.max((entry.count / highest) * 100, 8)}%`,
-                    backgroundColor: entry.color,
-                    boxShadow: `0 0 16px ${entry.color}33`,
-                  }}
-                />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -121,12 +245,14 @@ function formatTime(timestamp: string) {
 
 export default function AnalyticsPanel({
   threats,
+  aiEnabled,
   onOpenThreatHistory,
 }: AnalyticsPanelProps) {
   const processedThreatIdsRef = useRef<Set<string>>(new Set());
   const [velocityData, setVelocityData] = useState<VelocityPoint[]>(
     buildVelocitySeries(Array.from({ length: VELOCITY_HISTORY_POINTS }, () => 0)),
   );
+  const [insightIndex, setInsightIndex] = useState(0);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -157,6 +283,14 @@ export default function AnalyticsPanel({
     return () => window.clearInterval(intervalId);
   }, [threats]);
 
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setInsightIndex((previous) => previous + 1);
+    }, INSIGHT_ROTATION_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
   const threatTypeCounts = Object.keys(THREAT_TYPE_COLORS).map((type) => ({
     type,
     count: threats.filter((threat) => threat.type === type).length,
@@ -177,6 +311,25 @@ export default function AnalyticsPanel({
   const malwareLeaders = countEntries(threats.map((threat) => threat.malware_family));
   const sourceCountries = countEntries(threats.map((threat) => threat.src_geo.country));
   const recentAttackLanes = threats.slice().reverse().slice(0, ANALYTICS_LIST_LIMIT);
+  const insights = aiEnabled
+    ? buildInsights(threats, velocityData)
+    : [
+        "AI Insight is paused from Admin to preserve Gemini quota. Live charts, threat history, and route analytics continue running locally.",
+      ];
+  const activeInsight = insights[insightIndex % insights.length];
+
+  const hqPressureSparklines = Object.fromEntries(
+    hqPressure.map((entry) => [
+      entry.label,
+      buildSparklineSeries(threats, "target_hq_name", entry.label),
+    ]),
+  );
+  const malwareSparklines = Object.fromEntries(
+    malwareLeaders.map((entry) => [
+      entry.label,
+      buildSparklineSeries(threats, "malware_family", entry.label),
+    ]),
+  );
 
   return (
     <section className="panel-shell flex h-full min-h-0 flex-col overflow-hidden">
@@ -185,7 +338,7 @@ export default function AnalyticsPanel({
           INTELLIGENCE PANEL
         </h2>
         <p className="text-xs text-slate-400">
-          Threat mix, tempo, HQ pressure, and recent attack lanes
+          Threat mix, tempo, AI summaries, pressure trends, and recent attack lanes
         </p>
       </div>
 
@@ -326,6 +479,27 @@ export default function AnalyticsPanel({
           </div>
         </div>
 
+        <div className="rounded-md border border-cyan-400/12 bg-[linear-gradient(180deg,rgba(4,10,20,0.94)_0%,rgba(6,16,28,0.94)_100%)] p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <div className="mono-ui text-xs tracking-[0.2em] text-cyan-300">LIVE AI INSIGHT</div>
+              <p className="mt-1 text-xs text-slate-500">
+                {aiEnabled
+                  ? "Plain-English interpretation of the active attack window"
+                  : "Gemini-backed insight is paused to reduce API usage"}
+              </p>
+            </div>
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${
+                aiEnabled ? "animate-pulse bg-cyan-300" : "bg-slate-500"
+              }`}
+            />
+          </div>
+          <div className="rounded-md border border-cyan-400/10 bg-black/24 px-4 py-4 text-sm leading-7 text-slate-200">
+            {activeInsight}
+          </div>
+        </div>
+
         <StatList
           title="SEVERITY LOAD"
           description="How much of the active buffer sits in each severity tier."
@@ -333,13 +507,15 @@ export default function AnalyticsPanel({
         />
         <StatList
           title="HQ PRESSURE"
-          description="Which command centers are receiving the most inbound activity."
+          description="Which command centers are receiving the most inbound activity, with 10-second trend sparklines."
           entries={hqPressure}
+          sparklines={hqPressureSparklines}
         />
         <StatList
           title="MALWARE FAMILIES"
-          description="Families appearing most often in the current event window."
+          description="Families appearing most often in the current event window, plus immediate trend direction."
           entries={malwareLeaders}
+          sparklines={malwareSparklines}
         />
         <StatList
           title="SOURCE COUNTRIES"
@@ -358,7 +534,9 @@ export default function AnalyticsPanel({
           </div>
 
           {recentAttackLanes.length === 0 ? (
-            <div className="text-sm text-slate-500">Waiting for attacks to populate the lane log.</div>
+            <div className="text-sm text-slate-500">
+              Waiting for attacks to populate the lane log.
+            </div>
           ) : (
             <div className="space-y-2">
               {recentAttackLanes.map((threat) => (

@@ -16,6 +16,12 @@ export const MITIGATION_DELAY_MIN_MS = 300;
 export const MITIGATION_DELAY_MAX_MS = 600;
 export const THREAT_HISTORY_LIMIT = 24;
 export const ANALYTICS_LIST_LIMIT = 6;
+export const INSIGHT_ROTATION_INTERVAL_MS = 12000;
+export const INSIGHT_LOOKBACK_SECONDS = 60;
+export const SPARKLINE_POINTS = 10;
+export const SPARKLINE_WINDOW_SECONDS = 10;
+export const DASHBOARD_TICKER_HEIGHT_PX = 34;
+export const DASHBOARD_TICKER_DURATION_SECONDS = 38;
 export const TERMINAL_SCROLL_BOTTOM_BEHAVIOR: ScrollBehavior = "smooth";
 export const GLOBE_BACKGROUND = "#000008";
 export const GLOBE_TEXTURE_URL = "https://unpkg.com/three-globe/example/img/earth-night.jpg";
@@ -42,6 +48,26 @@ export const MAP_CURVE_HEIGHT = 54;
 export const MAP_SOURCE_POINT_RADIUS = 4;
 export const MAP_HQ_POINT_RADIUS = 7;
 export const MAP_LABEL_LIMIT = 10;
+export const MAP_GEOGRAPHY_URL =
+  "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+export const MAP_PROJECTION_SCALE = 165;
+export const MAP_COUNTRY_FILL = "#112536";
+export const MAP_COUNTRY_STROKE = "rgba(125, 211, 252, 0.18)";
+export const MAP_GRATICULE_STROKE = "rgba(148,163,184,0.16)";
+export const MAP_ROUTE_STROKE_MULTIPLIER = 2.1;
+export const MAP_VIEWBOX = {
+  width: 1000,
+  height: 500,
+} as const;
+export const MAP_CONTINENT_PATHS = [
+  "M74 98 L112 78 L160 70 L211 82 L248 110 L254 144 L236 171 L226 196 L194 205 L170 189 L145 181 L129 157 L109 153 L92 132 Z",
+  "M216 214 L236 230 L248 257 L255 284 L271 322 L261 355 L237 392 L219 433 L196 451 L180 426 L186 395 L194 364 L183 332 L177 302 L185 273 L198 244 Z",
+  "M440 87 L470 75 L514 70 L555 80 L592 96 L633 96 L675 111 L690 131 L677 149 L639 153 L610 144 L579 153 L551 169 L514 166 L496 184 L468 179 L444 165 L430 140 Z",
+  "M495 191 L517 188 L541 201 L554 228 L548 252 L536 278 L526 301 L517 323 L501 342 L481 353 L467 332 L470 304 L476 278 L482 248 L489 219 Z",
+  "M646 181 L677 172 L711 180 L740 194 L764 216 L781 246 L785 271 L767 286 L747 281 L731 257 L714 243 L693 261 L668 276 L642 264 L629 240 L633 211 Z",
+  "M778 333 L811 323 L848 329 L879 347 L905 369 L922 393 L914 415 L888 420 L860 403 L842 386 L826 367 L804 357 Z",
+  "M854 151 L889 141 L923 149 L947 166 L955 186 L937 197 L907 194 L885 185 L866 171 Z",
+] as const;
 export const MITIGATED_COLOR = "#22c55e";
 export const MODAL_SPRING = { type: "spring", stiffness: 180, damping: 22 } as const;
 export const ROUTES = {
@@ -96,6 +122,21 @@ export const THREAT_TYPE_COLORS = {
   Exploit: "#eab308",
   Botnet: "#14b8a6",
 } as const;
+export const THREAT_TYPE_DESCRIPTIONS = {
+  Ransomware: "Encrypts assets, disrupts operations, and often couples extortion with data theft.",
+  Phishing: "Steals credentials or drops payloads by abusing trusted communications and identities.",
+  DDoS: "Overwhelms exposed services until customers and operators lose access to them.",
+  C2: "Gives an intruder remote control over infected hosts for staging, persistence, and follow-on actions.",
+  Exploit: "Abuses a software weakness to gain execution, elevate access, or deploy malware.",
+  Botnet: "Coordinates many infected devices into one distributed attack or persistence platform.",
+} as const;
+export const DASHBOARD_TICKER_HEADLINES = [
+  "[CVE-2026-1045] Critical zero-day exploitation observed against exposed reverse proxies",
+  "[ALERT] AlienVault OTX reports fresh botnet clustering activity across multiple ASN ranges",
+  "[WATCH] Credential-harvest campaigns continue targeting cloud SSO entry points this week",
+  "[NOTICE] Public MISP feed shows continued overlap between ransomware loaders and phishing lures",
+  "[SOC] Elevated command-and-control traffic should trigger beaconing hunts across endpoint telemetry",
+] as const;
 export const ARC_STROKE_BY_SEVERITY: Record<string, number> = {
   Critical: 1.0,
   High: 0.75,
@@ -109,7 +150,7 @@ export const DEFAULT_TELEMETRY = {
   db_nodes_online: 3,
 } as const;
 export const AI_ANALYSIS_FALLBACK =
-  "1. SUMMARY (2 sentences): Analysis service is temporarily unavailable, but this indicator still represents suspicious hostile activity. Treat it as a live threat until the investigation can be completed.\n\n2. ATTACKER PROFILE (1 sentence): The available telemetry suggests a capable opportunistic intrusion source using commodity tooling.\n\n3. MITIGATION (3 bullet points):\n- Block the source IP and related indicators at the network edge immediately.\n- Push the file hash and tags into EDR and SIEM detections across the fleet.\n- Hunt for matching process trees, persistence artifacts, and outbound beaconing tied to this malware family.";
+  "1. SUMMARY: Analysis service is temporarily unavailable, but this indicator still represents suspicious hostile activity. Treat it as a live threat until the investigation is completed.\n\n2. WHAT IT DOES:\n- Likely supports attacker access, tasking, or follow-on payload delivery.\n- Can help an operator maintain persistence or escalate from reconnaissance into intrusion.\n- May be used alongside additional infrastructure or malware stages that are not yet visible.\n\n3. WHY IT IS HARMFUL:\n- It can threaten system availability, data confidentiality, or operational continuity.\n- It raises the chance of lateral movement, credential theft, or business disruption if left uncontained.\n\n4. ATTACKER PROFILE: The available telemetry suggests a capable opportunistic intrusion source using commodity tooling.\n\n5. MITIGATION:\n- Block the source IP and related indicators at the network edge immediately.\n- Push the file hash and tags into EDR and SIEM detections across the fleet.\n- Hunt for matching process trees, persistence artifacts, and outbound beaconing tied to this malware family.\n- Scope any affected hosts for persistence, credential use, and follow-on payloads.";
 export const MITIGATION_TERMINAL_STEPS = [
   "[SYS] Threat ID {id} flagged for containment...",
   "[FW]  Null-routing src IP {src_ip}...",

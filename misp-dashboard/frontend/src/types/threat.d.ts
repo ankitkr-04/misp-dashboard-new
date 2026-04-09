@@ -58,6 +58,7 @@ export interface LiveFeedStatusPayload {
 
 export interface AdminStatePayload {
   demo_mode: boolean;
+  ai_features_enabled: boolean;
   data_source: string;
   simulation_profile: string;
   active_hq_ids: string[];
@@ -86,6 +87,7 @@ export interface AdminStateResponse {
 
 export interface AdminStateUpdateRequest {
   demo_mode?: boolean;
+  ai_features_enabled?: boolean;
   data_source?: string;
   simulation_profile?: string;
   active_hq_ids?: string[];

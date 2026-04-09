@@ -22,6 +22,7 @@ class ControlPlane:
         self._lock = Lock()
         self._state = {
             "demo_mode": settings.DEFAULT_DEMO_MODE,
+            "ai_features_enabled": settings.AI_FEATURES_ENABLED_DEFAULT,
             "data_source": settings.DEFAULT_DATA_SOURCE if settings.DEFAULT_DATA_SOURCE in LIVE_DATA_SOURCES else LIVE_DATA_SOURCES[0],
             "simulation_profile": settings.DEFAULT_SIMULATION_PROFILE if settings.DEFAULT_SIMULATION_PROFILE in SIMULATION_PROFILES else SIMULATION_PROFILES[0],
             "active_hq_ids": self._normalize_hq_ids(settings.DEFAULT_ACTIVE_HQ_IDS.split(",")),
@@ -48,6 +49,7 @@ class ControlPlane:
         with self._lock:
             return {
                 "demo_mode": self._state["demo_mode"],
+                "ai_features_enabled": self._state["ai_features_enabled"],
                 "data_source": self._state["data_source"],
                 "simulation_profile": self._state["simulation_profile"],
                 "active_hq_ids": self._state["active_hq_ids"].copy(),
@@ -64,6 +66,9 @@ class ControlPlane:
 
             if patch.demo_mode is not None:
                 self._state["demo_mode"] = patch.demo_mode
+
+            if patch.ai_features_enabled is not None:
+                self._state["ai_features_enabled"] = patch.ai_features_enabled
 
             if patch.data_source is not None and patch.data_source in LIVE_DATA_SOURCES:
                 self._state["data_source"] = patch.data_source
@@ -122,6 +127,7 @@ class ControlPlane:
 
         return AdminStatePayload(
             demo_mode=snapshot["demo_mode"],
+            ai_features_enabled=snapshot["ai_features_enabled"],
             data_source=snapshot["data_source"],
             simulation_profile=snapshot["simulation_profile"],
             active_hq_ids=snapshot["active_hq_ids"],

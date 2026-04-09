@@ -3,6 +3,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.5-flash-lite"
+    AI_FEATURES_ENABLED_DEFAULT: bool = True
     OTX_API_KEY: str = ""
     WS_BROADCAST_INTERVAL_SECONDS: float = 2.0
     GOD_MODE_BURST_COUNT: int = 100

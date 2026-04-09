@@ -17,6 +17,7 @@ type ThreatDetailModalProps = {
   threat: ThreatPayload | null;
   threatHistoryType: string | null;
   relatedThreats: ThreatPayload[];
+  aiEnabled: boolean;
   onClose: () => void;
   onMitigate: (id: string) => void;
   onSelectRelatedThreat: (threat: ThreatPayload) => void;
@@ -68,6 +69,7 @@ export default function ThreatDetailModal({
   threat,
   threatHistoryType,
   relatedThreats,
+  aiEnabled,
   onClose,
   onMitigate,
   onSelectRelatedThreat,
@@ -102,7 +104,7 @@ export default function ThreatDetailModal({
   const modalActive = Boolean(threat || threatHistoryType);
 
   const handleAnalyze = async () => {
-    if (!threat) {
+    if (!threat || !aiEnabled) {
       return;
     }
 
@@ -185,7 +187,7 @@ export default function ThreatDetailModal({
           exit={{ opacity: 0 }}
         >
           <motion.div
-            className="panel-shell relative w-full max-w-5xl overflow-hidden"
+            className="panel-shell relative flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 18 }}
@@ -226,7 +228,7 @@ export default function ThreatDetailModal({
             </div>
 
             {showHistoryView ? (
-              <div className="space-y-5 p-5">
+              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
                 <div className="grid gap-3 md:grid-cols-3">
                   <div className="rounded-md border border-white/8 bg-black/18 p-4">
                     <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
@@ -297,7 +299,8 @@ export default function ThreatDetailModal({
             ) : null}
 
             {view === "detail" && threat ? (
-              <div className="grid gap-6 p-5 lg:grid-cols-[1.15fr_0.85fr]">
+              <div className="min-h-0 flex-1 overflow-y-auto p-5">
+                <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
                 <div className="rounded-md border border-white/8 bg-black/22 p-4">
                   <div className="mono-ui space-y-2 text-sm">
                     {renderDetailRows(threat).map(([key, value]) => (
@@ -363,10 +366,15 @@ export default function ThreatDetailModal({
                   <div className="mt-auto flex flex-wrap gap-3">
                     <button
                       type="button"
-                      className="rounded-md border border-cyan-400/30 bg-cyan-400/8 px-4 py-2 text-sm text-cyan-200 transition hover:bg-cyan-400/14"
+                      className={`rounded-md border px-4 py-2 text-sm transition ${
+                        aiEnabled
+                          ? "border-cyan-400/30 bg-cyan-400/8 text-cyan-200 hover:bg-cyan-400/14"
+                          : "cursor-not-allowed border-slate-600/60 bg-slate-700/20 text-slate-500"
+                      }`}
+                      disabled={!aiEnabled}
                       onClick={handleAnalyze}
                     >
-                      Analyze with AI
+                      {aiEnabled ? "Analyze with AI" : "AI Analysis Disabled"}
                     </button>
                     <button
                       type="button"
@@ -378,10 +386,11 @@ export default function ThreatDetailModal({
                   </div>
                 </div>
               </div>
+              </div>
             ) : null}
 
             {view === "analysis" && threat ? (
-              <div className="space-y-5 p-5">
+              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
                 <div className="rounded-md border border-cyan-400/12 bg-[rgba(4,10,20,0.96)] p-5">
                   <div className="mono-ui mb-4 text-sm tracking-[0.24em] text-cyan-300">
                     // GEMINI SOC ANALYST
@@ -397,7 +406,7 @@ export default function ThreatDetailModal({
                       </div>
                     </div>
                   ) : (
-                    <div className="min-h-[240px] whitespace-pre-wrap text-sm leading-7 text-slate-200">
+                    <div className="max-h-[56vh] min-h-[240px] overflow-y-auto whitespace-pre-wrap pr-2 text-sm leading-7 text-slate-200">
                       <TypewriterText
                         text={analysis}
                         speed={ANALYSIS_TYPEWRITER_SPEED_MS}
@@ -426,7 +435,7 @@ export default function ThreatDetailModal({
             ) : null}
 
             {view === "mitigation" && threat ? (
-              <div className="space-y-5 p-5">
+              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
                 <div className="rounded-md border border-emerald-400/14 bg-black p-5">
                   <div className="mono-ui mb-4 text-sm tracking-[0.22em] text-emerald-300">
                     // CONTAINMENT TERMINAL

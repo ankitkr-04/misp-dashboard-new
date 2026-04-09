@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 from app.core.config import settings
 from app.models.schemas import AdminStateResponse, AdminStateUpdateRequest, ThreatPayload
-from app.services.ai_service import analyze_threat
+from app.services.ai_service import analyze_threat, build_local_analysis
 from app.services.control_plane import control_plane
 from app.services.live_feed_service import live_feed_service
 
@@ -17,7 +17,11 @@ class AnalyzeRequest(BaseModel):
 
 @router.post("/analyze")
 async def analyze_endpoint(payload: AnalyzeRequest) -> dict[str, str]:
-    analysis = await analyze_threat(payload.threat.model_dump())
+    threat = payload.threat.model_dump()
+    if not control_plane.get_runtime_snapshot()["ai_features_enabled"]:
+        return {"analysis": build_local_analysis(threat)}
+
+    analysis = await analyze_threat(threat)
     return {"analysis": analysis}
 
 

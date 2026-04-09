@@ -59,6 +59,7 @@ class LiveFeedStatusPayload(BaseModel):
 
 class AdminStatePayload(BaseModel):
     demo_mode: bool
+    ai_features_enabled: bool
     data_source: str
     simulation_profile: str
     active_hq_ids: list[str]
@@ -87,6 +88,7 @@ class AdminStateResponse(BaseModel):
 
 class AdminStateUpdateRequest(BaseModel):
     demo_mode: bool | None = None
+    ai_features_enabled: bool | None = None
     data_source: str | None = None
     simulation_profile: str | None = None
     active_hq_ids: list[str] | None = None

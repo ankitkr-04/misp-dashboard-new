@@ -294,6 +294,32 @@ export default function AdminControlCenter({
                   ? "Demo-only controls are unlocked below: simulation profile, threat mix, severity gates, and burst mode. Live-feed controls stay visible in standby, but they do not shape the current stream."
                   : "Live-feed controls are unlocked below: source selection, refresh cadence, manual refresh, and ingestion speed. Demo shaping controls are preserved but locked until you switch back to demo mode."}
               </div>
+
+              <div className="rounded-md border border-white/8 bg-black/16 px-4 py-4">
+                <div className="mb-3">
+                  <div className="text-xs uppercase tracking-[0.22em] text-slate-500">
+                    AI Quota Guard
+                  </div>
+                  <p className="mt-1 text-sm text-slate-400">
+                    Controls Gemini-backed investigation output. When disabled, the modal falls
+                    back to local analysis and the AI insight card pauses.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <ToggleChip
+                    label="AI Assist On"
+                    active={state.ai_features_enabled}
+                    onClick={() => void onUpdateState({ ai_features_enabled: true })}
+                    accent="#22c55e"
+                  />
+                  <ToggleChip
+                    label="AI Assist Off"
+                    active={!state.ai_features_enabled}
+                    onClick={() => void onUpdateState({ ai_features_enabled: false })}
+                    accent="#f97316"
+                  />
+                </div>
+              </div>
             </Panel>
           </motion.section>
 
