@@ -1,0 +1,7 @@
+misp-dashboard/.env
+misp-dashboard/backend/.venv/
+misp-dashboard/frontend/node_modules/
+misp-dashboard/frontend/dist/
+misp-dashboard/**/__pycache__/
+misp-dashboard/**/*.pyc
+misp-dashboard/.DS_Store

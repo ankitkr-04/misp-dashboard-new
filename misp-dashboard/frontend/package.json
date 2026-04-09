@@ -1,0 +1,28 @@
+{
+  "name": "misp-soc-dashboard",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.1.18",
+    "framer-motion": "^12.23.12",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-globe.gl": "^2.36.0",
+    "recharts": "^3.0.0",
+    "tailwindcss": "^4.1.18",
+    "three": "^0.179.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react-swc": "^4.0.1",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.12"
+  }
+}
