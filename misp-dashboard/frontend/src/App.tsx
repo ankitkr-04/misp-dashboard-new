@@ -5,13 +5,14 @@ import TopNavBar from "./components/layout/TopNavBar";
 import { useAdminState } from "./hooks/useAdminState";
 import { useWebSocket } from "./hooks/useWebSocket";
 import type { ThreatPayload } from "./types/threat";
-import { ROUTES } from "./utils/constants";
+import { ROUTES, THREAT_HISTORY_LIMIT } from "./utils/constants";
 
 export default function App() {
   const { threats, telemetry, isConnected } = useWebSocket();
   const { adminState, isLoading, isSaving, error, updateState, refreshLiveFeed, triggerGodMode } =
     useAdminState();
   const [selectedThreat, setSelectedThreat] = useState<ThreatPayload | null>(null);
+  const [selectedThreatHistoryType, setSelectedThreatHistoryType] = useState<string | null>(null);
   const [mitigatedIds, setMitigatedIds] = useState<Set<string>>(new Set());
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
@@ -40,6 +41,41 @@ export default function App() {
 
     return adminState.catalog.hqs.filter((hq) => adminState.state.active_hq_ids.includes(hq.id));
   }, [adminState]);
+
+  const relatedThreatHistory = useMemo(() => {
+    if (!selectedThreatHistoryType) {
+      return [];
+    }
+
+    return threats
+      .filter((threat) => threat.type === selectedThreatHistoryType)
+      .slice()
+      .reverse()
+      .slice(0, THREAT_HISTORY_LIMIT);
+  }, [selectedThreatHistoryType, threats]);
+
+  const handleSelectThreat = (threat: ThreatPayload) => {
+    setSelectedThreatHistoryType(null);
+    setSelectedThreat(threat);
+  };
+
+  const handleOpenThreatHistory = (threatType: string) => {
+    setSelectedThreat(null);
+    setSelectedThreatHistoryType(threatType);
+  };
+
+  const handleSelectThreatFromHistory = (threat: ThreatPayload) => {
+    setSelectedThreat(threat);
+  };
+
+  const handleCloseModal = () => {
+    setSelectedThreat(null);
+    setSelectedThreatHistoryType(null);
+  };
+
+  const handleBackToHistory = () => {
+    setSelectedThreat(null);
+  };
 
   const handleMitigate = (id: string) => {
     setMitigatedIds((previous) => {
@@ -73,10 +109,15 @@ export default function App() {
         <DashboardGrid
           threats={threats}
           selectedThreat={selectedThreat}
+          selectedThreatHistoryType={selectedThreatHistoryType}
+          relatedThreatHistory={relatedThreatHistory}
           mitigatedIds={mitigatedIds}
           activeHqs={activeHqs}
-          onSelectThreat={setSelectedThreat}
-          onCloseThreat={() => setSelectedThreat(null)}
+          onSelectThreat={handleSelectThreat}
+          onOpenThreatHistory={handleOpenThreatHistory}
+          onSelectThreatFromHistory={handleSelectThreatFromHistory}
+          onCloseThreat={handleCloseModal}
+          onBackToThreatHistory={handleBackToHistory}
           onMitigateThreat={handleMitigate}
         />
       )}

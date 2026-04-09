@@ -9,6 +9,9 @@ import {
   ADMIN_PILLAR_COPY,
   DATA_SOURCE_LABELS,
   LIVE_FEED_STATUS_LABELS,
+  LIVE_REFRESH_MINUTES_MAX,
+  LIVE_REFRESH_MINUTES_MIN,
+  LIVE_REFRESH_MINUTES_STEP,
   ROUTES,
   SEVERITY_COLORS,
   SIMULATION_PROFILE_LABELS,
@@ -48,27 +51,49 @@ function Panel({
   );
 }
 
+function StatTile({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+}) {
+  return (
+    <div className="rounded-md border border-white/8 bg-black/16 p-4">
+      <div className="text-xs uppercase tracking-[0.22em] text-slate-500">{label}</div>
+      <div className="mt-2 text-lg font-semibold text-slate-100">{value}</div>
+      {hint ? <div className="mt-2 text-sm text-slate-400">{hint}</div> : null}
+    </div>
+  );
+}
+
 function ToggleChip({
   label,
   active,
   onClick,
   accent,
+  disabled = false,
 }: {
   label: string;
   active: boolean;
   onClick: () => void;
   accent?: string;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
-      className="rounded-md border px-3 py-2 text-sm transition"
+      className="rounded-md border px-3 py-2 text-sm transition disabled:cursor-not-allowed"
       style={{
         borderColor: active ? `${accent ?? "#00ff88"}66` : "rgba(255,255,255,0.08)",
         background: active ? `${accent ?? "#00ff88"}16` : "rgba(255,255,255,0.03)",
-        color: active ? "#f8fafc" : "#94a3b8",
+        color: disabled ? "#64748b" : active ? "#f8fafc" : "#94a3b8",
         boxShadow: active ? `0 0 12px ${accent ?? "#00ff88"}22` : "none",
+        opacity: disabled ? 0.55 : 1,
       }}
+      disabled={disabled}
       onClick={onClick}
     >
       {label}
@@ -168,6 +193,12 @@ export default function AdminControlCenter({
   }
 
   const { state, catalog } = adminState;
+  const isDemoMode = state.demo_mode;
+  const liveSourceLabel =
+    DATA_SOURCE_LABELS[state.data_source as keyof typeof DATA_SOURCE_LABELS] ?? state.data_source;
+  const effectiveSourceLabel =
+    DATA_SOURCE_LABELS[state.effective_source as keyof typeof DATA_SOURCE_LABELS] ??
+    state.effective_source;
 
   return (
     <main className="h-screen overflow-y-auto px-4 pb-6 pt-[84px]">
@@ -182,8 +213,8 @@ export default function AdminControlCenter({
               ADMIN CONTROL PLANE
             </h1>
             <p className="mt-1 text-sm text-slate-400">
-              Switch between demo simulation and live public MISP feed, expand HQ coverage, and
-              shape the stream without touching code.
+              Demo mode shapes the narrative. Live mode only controls real-feed pacing, refresh
+              cadence, and where attacks land across the HQ mesh.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -194,13 +225,23 @@ export default function AdminControlCenter({
             >
               Back To Dashboard
             </button>
-            <button
-              type="button"
-              className="rounded-md border border-rose-400/30 bg-rose-400/10 px-4 py-2 text-sm text-rose-200 transition hover:bg-rose-400/14"
-              onClick={() => void onTriggerGodMode()}
-            >
-              Trigger God Mode
-            </button>
+            {isDemoMode ? (
+              <button
+                type="button"
+                className="rounded-md border border-rose-400/30 bg-rose-400/10 px-4 py-2 text-sm text-rose-200 transition hover:bg-rose-400/14"
+                onClick={() => void onTriggerGodMode()}
+              >
+                Trigger Demo Burst
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="rounded-md border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-sm text-cyan-200 transition hover:bg-cyan-400/16"
+                onClick={() => void onRefreshLiveFeed()}
+              >
+                Refresh Live Feed
+              </button>
+            )}
           </div>
         </motion.section>
 
@@ -210,127 +251,56 @@ export default function AdminControlCenter({
           </div>
         ) : null}
 
-        <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+        <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
           <motion.section initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
             <Panel
               title="Mode Control"
-              description="Demo mode stays presentation-safe. Disable it to stream real indicators from the public MISP feed."
+              description="The dashboard now treats demo and live as different operating modes instead of one mixed control surface."
             >
               <div className="flex flex-wrap gap-3">
                 <ToggleChip
                   label="Demo Mode"
-                  active={state.demo_mode}
+                  active={isDemoMode}
                   onClick={() => void onUpdateState({ demo_mode: true })}
                 />
                 <ToggleChip
                   label="Live Feed Mode"
-                  active={!state.demo_mode}
+                  active={!isDemoMode}
                   onClick={() => void onUpdateState({ demo_mode: false })}
                   accent="#38bdf8"
                 />
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="rounded-md border border-white/8 bg-black/16 p-4">
-                  <div className="text-xs uppercase tracking-[0.22em] text-slate-500">
-                    Active Pipeline
-                  </div>
-                  <div className="mt-2 text-lg font-semibold text-slate-100">
-                    {DATA_SOURCE_LABELS[state.effective_source as keyof typeof DATA_SOURCE_LABELS] ??
-                      state.effective_source}
-                  </div>
-                  <p className="mt-2 text-sm text-slate-400">
-                    {state.demo_mode ? ADMIN_PILLAR_COPY.demo : ADMIN_PILLAR_COPY.live}
-                  </p>
-                </div>
-                <div className="rounded-md border border-white/8 bg-black/16 p-4">
-                  <div className="text-xs uppercase tracking-[0.22em] text-slate-500">
-                    Feed Status
-                  </div>
-                  <div className="mt-2 text-lg font-semibold text-slate-100">
-                    {LIVE_FEED_STATUS_LABELS[
-                      state.live_feed_status.status as keyof typeof LIVE_FEED_STATUS_LABELS
-                    ] ?? state.live_feed_status.status}
-                  </div>
-                  <div className="mt-2 text-sm text-slate-400">
-                    {state.live_feed_status.loaded_count} indicators loaded
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                {catalog.data_sources.map((source) => (
-                  <ToggleChip
-                    key={source}
-                    label={
-                      DATA_SOURCE_LABELS[source as keyof typeof DATA_SOURCE_LABELS] ?? source
-                    }
-                    active={state.data_source === source}
-                    onClick={() => void onUpdateState({ data_source: source })}
-                    accent="#38bdf8"
-                  />
-                ))}
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  className="rounded-md border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-sm text-cyan-200 transition hover:bg-cyan-400/16"
-                  onClick={() => void onRefreshLiveFeed()}
-                >
-                  Refresh Live Feed
-                </button>
-                <ToggleChip
-                  label={state.auto_refresh_live_feed ? "Auto Refresh On" : "Auto Refresh Off"}
-                  active={state.auto_refresh_live_feed}
-                  onClick={() =>
-                    void onUpdateState({
-                      auto_refresh_live_feed: !state.auto_refresh_live_feed,
-                    })
-                  }
-                  accent="#14b8a6"
+              <div className="grid gap-3 md:grid-cols-3">
+                <StatTile
+                  label="Effective Pipeline"
+                  value={effectiveSourceLabel}
+                  hint={isDemoMode ? ADMIN_PILLAR_COPY.demo : ADMIN_PILLAR_COPY.live}
+                />
+                <StatTile
+                  label="HQ Coverage"
+                  value={`${state.active_hq_ids.length} active`}
+                  hint="HQ routing remains available in both modes."
+                />
+                <StatTile
+                  label="Save State"
+                  value={isSaving ? "Applying..." : "Synchronized"}
+                  hint="Control changes are committed to the backend runtime immediately."
                 />
               </div>
 
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-md border border-white/8 bg-black/16 p-3">
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                    Last Refresh
-                  </div>
-                  <div className="mt-2 text-sm text-slate-200">
-                    {formatDateTime(state.live_feed_status.last_refresh)}
-                  </div>
-                </div>
-                <div className="rounded-md border border-white/8 bg-black/16 p-3">
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                    OTX Env Key
-                  </div>
-                  <div className="mt-2 text-sm text-slate-200">
-                    {state.otx_api_key_configured ? "Configured" : "Not Set"}
-                  </div>
-                </div>
-                <div className="rounded-md border border-white/8 bg-black/16 p-3">
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                    Save State
-                  </div>
-                  <div className="mt-2 text-sm text-slate-200">
-                    {isSaving ? "Applying..." : "Synchronized"}
-                  </div>
-                </div>
+              <div className="rounded-md border border-white/8 bg-black/16 px-4 py-4 text-sm text-slate-300">
+                {isDemoMode
+                  ? "Demo-only controls are unlocked below: simulation profile, threat mix, severity gates, and burst mode. Live-feed controls stay visible in standby, but they do not shape the current stream."
+                  : "Live-feed controls are unlocked below: source selection, refresh cadence, manual refresh, and ingestion speed. Demo shaping controls are preserved but locked until you switch back to demo mode."}
               </div>
-
-              {state.live_feed_status.last_error ? (
-                <div className="rounded-md border border-rose-500/20 bg-rose-500/8 px-3 py-3 text-sm text-rose-200">
-                  {state.live_feed_status.last_error}
-                </div>
-              ) : null}
             </Panel>
           </motion.section>
 
           <motion.section initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}>
             <Panel
               title="HQ Mesh"
-              description="Threats will route to one of the selected headquarters. This gives the globe multiple destinations instead of a single NYC sink."
+              description="Threats route into the selected command centers. This affects both demo and live traffic."
             >
               <div className="grid gap-3 sm:grid-cols-2">
                 {catalog.hqs.map((hq) => (
@@ -350,133 +320,369 @@ export default function AdminControlCenter({
           </motion.section>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-3">
-          <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-            <Panel
-              title="Simulation Profiles"
-              description="These only affect demo mode, so you can pivot the story quickly during a presentation."
-            >
-              <div className="flex flex-wrap gap-3">
-                {catalog.simulation_profiles.map((profile) => (
-                  <ToggleChip
-                    key={profile}
-                    label={
-                      SIMULATION_PROFILE_LABELS[
-                        profile as keyof typeof SIMULATION_PROFILE_LABELS
-                      ] ?? profile
-                    }
-                    active={state.simulation_profile === profile}
-                    onClick={() => void onUpdateState({ simulation_profile: profile })}
-                    accent="#a855f7"
-                  />
-                ))}
-              </div>
-            </Panel>
-          </motion.section>
+        {isDemoMode ? (
+          <>
+            <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+              <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+                <Panel
+                  title="Demo Scenario"
+                  description="These controls only affect synthetic traffic, so you can tell a sharper story during a presentation."
+                >
+                  <div className="flex flex-wrap gap-3">
+                    {catalog.simulation_profiles.map((profile) => (
+                      <ToggleChip
+                        key={profile}
+                        label={
+                          SIMULATION_PROFILE_LABELS[
+                            profile as keyof typeof SIMULATION_PROFILE_LABELS
+                          ] ?? profile
+                        }
+                        active={state.simulation_profile === profile}
+                        onClick={() => void onUpdateState({ simulation_profile: profile })}
+                        accent="#a855f7"
+                      />
+                    ))}
+                  </div>
 
-          <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <Panel
-              title="Threat Filters"
-              description="Filter the stream at the backend so the terminal, globe, and charts all stay aligned."
-            >
-              <div className="flex flex-wrap gap-3">
-                {catalog.threat_types.map((threatType) => (
-                  <ToggleChip
-                    key={threatType}
-                    label={threatType}
-                    active={state.enabled_threat_types.includes(threatType)}
-                    onClick={() =>
-                      void onUpdateState({
-                        enabled_threat_types: toggleSelection(
-                          state.enabled_threat_types,
-                          threatType,
-                        ),
-                      })
-                    }
-                    accent="#38bdf8"
-                  />
-                ))}
-              </div>
-            </Panel>
-          </motion.section>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <StatTile
+                      label="Burst Control"
+                      value="God Mode Ready"
+                      hint="Generates a short high-pressure synthetic burst without changing live-feed state."
+                    />
+                    <StatTile
+                      label="Live Feed Standby"
+                      value={liveSourceLabel}
+                      hint="Your live source selection is stored, but it is idle while demo mode is active."
+                    />
+                  </div>
+                </Panel>
+              </motion.section>
 
-          <motion.section initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}>
-            <Panel
-              title="Severity Gates"
-              description="Cut low-noise traffic or force a high-pressure threat picture depending on the story you want to tell."
-            >
-              <div className="flex flex-wrap gap-3">
-                {catalog.severities.map((severity) => (
-                  <ToggleChip
-                    key={severity}
-                    label={severity}
-                    active={state.enabled_severities.includes(severity)}
-                    onClick={() =>
-                      void onUpdateState({
-                        enabled_severities: toggleSelection(state.enabled_severities, severity),
-                      })
-                    }
-                    accent={
-                      SEVERITY_COLORS[severity as keyof typeof SEVERITY_COLORS] ?? "#00ff88"
-                    }
-                  />
-                ))}
-              </div>
-            </Panel>
-          </motion.section>
-        </div>
+              <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                <Panel
+                  title="Threat Shaping"
+                  description="Use these controls to bias the terminal, globe, and analytics toward the attack story you want to show."
+                >
+                  <div>
+                    <div className="mb-3 text-xs uppercase tracking-[0.2em] text-slate-500">
+                      Threat Mix
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      {catalog.threat_types.map((threatType) => (
+                        <ToggleChip
+                          key={threatType}
+                          label={threatType}
+                          active={state.enabled_threat_types.includes(threatType)}
+                          onClick={() =>
+                            void onUpdateState({
+                              enabled_threat_types: toggleSelection(
+                                state.enabled_threat_types,
+                                threatType,
+                              ),
+                            })
+                          }
+                          accent="#38bdf8"
+                        />
+                      ))}
+                    </div>
+                  </div>
 
-        <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
-          <motion.section initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}>
-            <Panel
-              title="Stream Rate"
-              description="Control how quickly the backend emits new threats over the WebSocket."
-            >
-              <label className="flex flex-col gap-3">
-                <span className="text-sm text-slate-300">
-                  Current interval:{" "}
-                  <span className="mono-ui text-[var(--color-accent)]">
-                    {state.ws_broadcast_interval_seconds.toFixed(1)}s
-                  </span>
-                </span>
-                <input
-                  type="range"
-                  min={STREAM_INTERVAL_MIN_SECONDS}
-                  max={STREAM_INTERVAL_MAX_SECONDS}
-                  step={STREAM_INTERVAL_STEP_SECONDS}
-                  value={state.ws_broadcast_interval_seconds}
-                  onChange={(event) =>
-                    void onUpdateState({
-                      ws_broadcast_interval_seconds: Number(event.target.value),
-                    })
-                  }
-                />
-              </label>
-            </Panel>
-          </motion.section>
+                  <div>
+                    <div className="mb-3 text-xs uppercase tracking-[0.2em] text-slate-500">
+                      Severity Gates
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      {catalog.severities.map((severity) => (
+                        <ToggleChip
+                          key={severity}
+                          label={severity}
+                          active={state.enabled_severities.includes(severity)}
+                          onClick={() =>
+                            void onUpdateState({
+                              enabled_severities: toggleSelection(
+                                state.enabled_severities,
+                                severity,
+                              ),
+                            })
+                          }
+                          accent={
+                            SEVERITY_COLORS[severity as keyof typeof SEVERITY_COLORS] ?? "#00ff88"
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </Panel>
+              </motion.section>
+            </div>
 
-          <motion.section initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }}>
-            <Panel
-              title="Runbook"
-              description="How the admin route maps to your demo story and to real-data mode."
-            >
-              <div className="space-y-3 text-sm leading-7 text-slate-300">
-                <p>
-                  `Demo Mode` keeps everything local and safe for a presentation. Use the profile
-                  chips to bias toward DDoS, ransomware, phishing, or botnet-heavy traffic.
-                </p>
-                <p>
-                  Turning demo mode off switches the backend to the real public MISP feed. The
-                  stream then uses live indicators from the public feed instead of fabricated ones.
-                </p>
-                <p>
-                  Configuration stays centralized: backend secrets and live-feed URLs belong in
-                  `misp-dashboard/.env`, while UI-level values stay in `frontend/src/utils/constants.ts`.
-                </p>
-              </div>
-            </Panel>
-          </motion.section>
-        </div>
+            <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+              <motion.section initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}>
+                <Panel
+                  title="Stream Controls"
+                  description="This pacing control applies to both modes, but it is especially helpful while shaping the demo narrative."
+                >
+                  <label className="flex flex-col gap-3">
+                    <span className="text-sm text-slate-300">
+                      Current interval:{" "}
+                      <span className="mono-ui text-[var(--color-accent)]">
+                        {state.ws_broadcast_interval_seconds.toFixed(1)}s
+                      </span>
+                    </span>
+                    <input
+                      type="range"
+                      min={STREAM_INTERVAL_MIN_SECONDS}
+                      max={STREAM_INTERVAL_MAX_SECONDS}
+                      step={STREAM_INTERVAL_STEP_SECONDS}
+                      value={state.ws_broadcast_interval_seconds}
+                      onChange={(event) =>
+                        void onUpdateState({
+                          ws_broadcast_interval_seconds: Number(event.target.value),
+                        })
+                      }
+                    />
+                  </label>
+                </Panel>
+              </motion.section>
+
+              <motion.section initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }}>
+                <Panel
+                  title="Live Feed Standby"
+                  description="These values are still visible while you are in demo mode, but they will only take effect after you switch to live."
+                >
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <StatTile
+                      label="Selected Live Source"
+                      value={liveSourceLabel}
+                      hint="Switch to live mode to make this the active pipeline."
+                    />
+                    <StatTile
+                      label="Last Feed Refresh"
+                      value={formatDateTime(state.live_feed_status.last_refresh)}
+                      hint={`${state.live_feed_status.loaded_count} indicators cached`}
+                    />
+                    <StatTile
+                      label="Refresh Cadence"
+                      value={`${state.live_feed_refresh_minutes.toFixed(0)} min`}
+                      hint="Stored live setting"
+                    />
+                    <StatTile
+                      label="OTX Key"
+                      value={state.otx_api_key_configured ? "Configured" : "Not Set"}
+                      hint="Required only when AlienVault OTX is the selected live source."
+                    />
+                  </div>
+                </Panel>
+              </motion.section>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+              <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+                <Panel
+                  title="Live Feed Controls"
+                  description="Live mode is intentionally narrower: choose the source, control refresh cadence, and decide how quickly the feed is emitted."
+                >
+                  <div className="flex flex-wrap gap-3">
+                    {catalog.data_sources.map((source) => (
+                      <ToggleChip
+                        key={source}
+                        label={
+                          DATA_SOURCE_LABELS[source as keyof typeof DATA_SOURCE_LABELS] ?? source
+                        }
+                        active={state.data_source === source}
+                        onClick={() => void onUpdateState({ data_source: source })}
+                        accent="#38bdf8"
+                      />
+                    ))}
+                  </div>
+
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      className="rounded-md border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-sm text-cyan-200 transition hover:bg-cyan-400/16"
+                      onClick={() => void onRefreshLiveFeed()}
+                    >
+                      Refresh Live Feed
+                    </button>
+                    <ToggleChip
+                      label={state.auto_refresh_live_feed ? "Auto Refresh On" : "Auto Refresh Off"}
+                      active={state.auto_refresh_live_feed}
+                      onClick={() =>
+                        void onUpdateState({
+                          auto_refresh_live_feed: !state.auto_refresh_live_feed,
+                        })
+                      }
+                      accent="#14b8a6"
+                    />
+                  </div>
+
+                  <label className="flex flex-col gap-3">
+                    <span className="text-sm text-slate-300">
+                      Feed refresh cadence:{" "}
+                      <span className="mono-ui text-cyan-200">
+                        {state.live_feed_refresh_minutes.toFixed(0)} min
+                      </span>
+                    </span>
+                    <input
+                      type="range"
+                      min={LIVE_REFRESH_MINUTES_MIN}
+                      max={LIVE_REFRESH_MINUTES_MAX}
+                      step={LIVE_REFRESH_MINUTES_STEP}
+                      value={state.live_feed_refresh_minutes}
+                      onChange={(event) =>
+                        void onUpdateState({
+                          live_feed_refresh_minutes: Number(event.target.value),
+                        })
+                      }
+                    />
+                  </label>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <StatTile
+                      label="Feed Status"
+                      value={
+                        LIVE_FEED_STATUS_LABELS[
+                          state.live_feed_status.status as keyof typeof LIVE_FEED_STATUS_LABELS
+                        ] ?? state.live_feed_status.status
+                      }
+                      hint={`${state.live_feed_status.loaded_count} indicators loaded`}
+                    />
+                    <StatTile
+                      label="Last Refresh"
+                      value={formatDateTime(state.live_feed_status.last_refresh)}
+                      hint="Manual refresh will rebuild the cached live indicator set immediately."
+                    />
+                    <StatTile
+                      label="OTX Env Key"
+                      value={state.otx_api_key_configured ? "Configured" : "Not Set"}
+                      hint="Only needed when AlienVault OTX is the active source."
+                    />
+                    <StatTile
+                      label="Selected Source"
+                      value={liveSourceLabel}
+                      hint="This is the only source feeding the live WebSocket stream."
+                    />
+                  </div>
+
+                  {state.live_feed_status.last_error ? (
+                    <div className="rounded-md border border-rose-500/20 bg-rose-500/8 px-3 py-3 text-sm text-rose-200">
+                      {state.live_feed_status.last_error}
+                    </div>
+                  ) : null}
+                </Panel>
+              </motion.section>
+
+              <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                <Panel
+                  title="Live Ingestion"
+                  description="In live mode you can only change the release rate of real indicators, not the character of the threat set itself."
+                >
+                  <label className="flex flex-col gap-3">
+                    <span className="text-sm text-slate-300">
+                      Current interval:{" "}
+                      <span className="mono-ui text-[var(--color-accent)]">
+                        {state.ws_broadcast_interval_seconds.toFixed(1)}s
+                      </span>
+                    </span>
+                    <input
+                      type="range"
+                      min={STREAM_INTERVAL_MIN_SECONDS}
+                      max={STREAM_INTERVAL_MAX_SECONDS}
+                      step={STREAM_INTERVAL_STEP_SECONDS}
+                      value={state.ws_broadcast_interval_seconds}
+                      onChange={(event) =>
+                        void onUpdateState({
+                          ws_broadcast_interval_seconds: Number(event.target.value),
+                        })
+                      }
+                    />
+                  </label>
+
+                  <div className="rounded-md border border-cyan-400/12 bg-cyan-400/5 px-4 py-4 text-sm text-cyan-100">
+                    Live mode no longer applies simulation profile, threat mix shaping, or
+                    severity gating. The feed is emitted as collected and only paced at the
+                    WebSocket boundary.
+                  </div>
+                </Panel>
+              </motion.section>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+              <motion.section initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}>
+                <Panel
+                  title="Demo Controls Locked"
+                  description="These settings are preserved for the next time you return to demo mode, but they do not affect the live feed."
+                >
+                  <div className="rounded-md border border-white/8 bg-black/16 px-4 py-4">
+                    <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                      Stored Demo Profile
+                    </div>
+                    <div className="mt-2 text-lg font-semibold text-slate-100">
+                      {SIMULATION_PROFILE_LABELS[
+                        state.simulation_profile as keyof typeof SIMULATION_PROFILE_LABELS
+                      ] ?? state.simulation_profile}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3">
+                    {catalog.threat_types.map((threatType) => (
+                      <ToggleChip
+                        key={threatType}
+                        label={threatType}
+                        active={state.enabled_threat_types.includes(threatType)}
+                        onClick={() => undefined}
+                        accent="#38bdf8"
+                        disabled
+                      />
+                    ))}
+                  </div>
+
+                  <div className="flex flex-wrap gap-3">
+                    {catalog.severities.map((severity) => (
+                      <ToggleChip
+                        key={severity}
+                        label={severity}
+                        active={state.enabled_severities.includes(severity)}
+                        onClick={() => undefined}
+                        accent={
+                          SEVERITY_COLORS[severity as keyof typeof SEVERITY_COLORS] ?? "#00ff88"
+                        }
+                        disabled
+                      />
+                    ))}
+                  </div>
+                </Panel>
+              </motion.section>
+
+              <motion.section initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }}>
+                <Panel
+                  title="Runbook"
+                  description="How to use the control plane now that demo and live mode are split."
+                >
+                  <div className="space-y-3 text-sm leading-7 text-slate-300">
+                    <p>
+                      Use demo mode when you want to force a DDoS narrative, a ransomware sweep, or
+                      a tighter severity band during a presentation.
+                    </p>
+                    <p>
+                      Use live mode when you want the dashboard to behave like an intake surface for
+                      real threat intelligence. In that mode, the feed source, refresh cadence, and
+                      release speed are the only stream-shaping controls.
+                    </p>
+                    <p>
+                      Configuration stays centralized: backend runtime values live in
+                      `misp-dashboard/.env` and `backend/app/core/config.py`, while frontend display
+                      constants stay in `frontend/src/utils/constants.ts`.
+                    </p>
+                  </div>
+                </Panel>
+              </motion.section>
+            </div>
+          </>
+        )}
       </div>
     </main>
   );

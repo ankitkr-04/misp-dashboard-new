@@ -15,11 +15,15 @@ import TypewriterText from "../ui/TypewriterText";
 
 type ThreatDetailModalProps = {
   threat: ThreatPayload | null;
+  threatHistoryType: string | null;
+  relatedThreats: ThreatPayload[];
   onClose: () => void;
   onMitigate: (id: string) => void;
+  onSelectRelatedThreat: (threat: ThreatPayload) => void;
+  onBackToHistory: () => void;
 };
 
-type ModalView = "detail" | "analysis" | "mitigation";
+type ModalView = "history" | "detail" | "analysis" | "mitigation";
 
 function stringifyLocation(value: ThreatPayload["src_geo"]) {
   return `${value.city}, ${value.country} (${value.lat.toFixed(4)}, ${value.lon.toFixed(4)})`;
@@ -54,10 +58,20 @@ function fillMitigationTemplate(threat: ThreatPayload) {
   );
 }
 
+function formatTimestamp(timestamp: string) {
+  return new Date(timestamp).toLocaleString("en-US", {
+    hour12: false,
+  });
+}
+
 export default function ThreatDetailModal({
   threat,
+  threatHistoryType,
+  relatedThreats,
   onClose,
   onMitigate,
+  onSelectRelatedThreat,
+  onBackToHistory,
 }: ThreatDetailModalProps) {
   const [view, setView] = useState<ModalView>("detail");
   const [analysis, setAnalysis] = useState("");
@@ -68,7 +82,7 @@ export default function ThreatDetailModal({
   const mitigationCommittedRef = useRef(false);
 
   useEffect(() => {
-    setView("detail");
+    setView(threat ? "detail" : threatHistoryType ? "history" : "detail");
     setAnalysis("");
     setIsLoadingAnalysis(false);
     setMitigationLines([]);
@@ -77,13 +91,15 @@ export default function ThreatDetailModal({
 
     timeoutIdsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
     timeoutIdsRef.current = [];
-  }, [threat]);
+  }, [threat, threatHistoryType]);
 
   useEffect(() => {
     return () => {
       timeoutIdsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
     };
   }, []);
+
+  const modalActive = Boolean(threat || threatHistoryType);
 
   const handleAnalyze = async () => {
     if (!threat) {
@@ -154,11 +170,15 @@ export default function ThreatDetailModal({
     });
   };
 
+  const historyCriticalCount = relatedThreats.filter((item) => item.severity === "Critical").length;
+  const uniqueSourceCountries = new Set(relatedThreats.map((item) => item.src_geo.country)).size;
+  const showHistoryView = view === "history" && Boolean(threatHistoryType);
+
   return (
     <AnimatePresence>
-      {threat ? (
+      {modalActive ? (
         <motion.div
-          key={threat.id}
+          key={threat?.id ?? threatHistoryType ?? "modal"}
           className="fixed inset-0 z-40 flex items-center justify-center bg-black/72 px-4 py-8 backdrop-blur-sm"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -174,20 +194,109 @@ export default function ThreatDetailModal({
             <div className="flex items-center justify-between border-b border-white/8 px-5 py-4">
               <div>
                 <h2 className="mono-ui text-sm tracking-[0.24em] text-[var(--color-accent)]">
-                  THREAT INVESTIGATION
+                  {showHistoryView ? "ATTACK HISTORY" : "THREAT INVESTIGATION"}
                 </h2>
-                <p className="text-xs text-slate-400">Threat ID {threat.id}</p>
+                <p className="text-xs text-slate-400">
+                  {showHistoryView
+                    ? `${threatHistoryType} lane // ${relatedThreats.length} recent hits`
+                    : `Threat ID ${threat?.id ?? "n/a"}`}
+                </p>
               </div>
-              <button
-                type="button"
-                className="rounded-md border border-white/10 px-3 py-1.5 text-sm text-slate-300 transition hover:border-white/20 hover:bg-white/6"
-                onClick={onClose}
-              >
-                Close
-              </button>
+              <div className="flex items-center gap-2">
+                {threat && threatHistoryType ? (
+                  <button
+                    type="button"
+                    className="rounded-md border border-white/10 px-3 py-1.5 text-sm text-slate-300 transition hover:border-white/20 hover:bg-white/6"
+                    onClick={() => {
+                      setView("history");
+                      onBackToHistory();
+                    }}
+                  >
+                    Back To History
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="rounded-md border border-white/10 px-3 py-1.5 text-sm text-slate-300 transition hover:border-white/20 hover:bg-white/6"
+                  onClick={onClose}
+                >
+                  Close
+                </button>
+              </div>
             </div>
 
-            {view === "detail" && (
+            {showHistoryView ? (
+              <div className="space-y-5 p-5">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="rounded-md border border-white/8 bg-black/18 p-4">
+                    <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                      Buffered Attacks
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-100">
+                      {relatedThreats.length}
+                    </div>
+                  </div>
+                  <div className="rounded-md border border-white/8 bg-black/18 p-4">
+                    <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                      Critical Hits
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-rose-300">
+                      {historyCriticalCount}
+                    </div>
+                  </div>
+                  <div className="rounded-md border border-white/8 bg-black/18 p-4">
+                    <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                      Source Countries
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-100">
+                      {uniqueSourceCountries}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-md border border-white/8 bg-black/18 p-3">
+                  {relatedThreats.length === 0 ? (
+                    <div className="flex min-h-[240px] items-center justify-center text-sm text-slate-500">
+                      No attacks of this type are currently buffered.
+                    </div>
+                  ) : (
+                    <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+                      {relatedThreats.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className="flex w-full items-center justify-between gap-3 rounded-md border border-white/8 bg-white/3 px-3 py-3 text-left transition hover:border-white/16 hover:bg-white/6"
+                          onClick={() => onSelectRelatedThreat(item)}
+                        >
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <StatusBadge severity={item.severity} />
+                              <span className="text-sm text-slate-100">{item.src_ip}</span>
+                              <span className="text-xs text-slate-500">
+                                {item.src_geo.city}, {item.src_geo.country}
+                              </span>
+                            </div>
+                            <div className="mt-2 text-xs text-slate-400">
+                              {item.malware_family} // {item.source} // {item.target_hq_name}
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <div className="mono-ui text-xs text-slate-400">
+                              {formatTimestamp(item.timestamp)}
+                            </div>
+                            <div className="mt-2 text-xs uppercase tracking-[0.18em] text-cyan-300">
+                              Open Investigation
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            {view === "detail" && threat ? (
               <div className="grid gap-6 p-5 lg:grid-cols-[1.15fr_0.85fr]">
                 <div className="rounded-md border border-white/8 bg-black/22 p-4">
                   <div className="mono-ui space-y-2 text-sm">
@@ -269,9 +378,9 @@ export default function ThreatDetailModal({
                   </div>
                 </div>
               </div>
-            )}
+            ) : null}
 
-            {view === "analysis" && (
+            {view === "analysis" && threat ? (
               <div className="space-y-5 p-5">
                 <div className="rounded-md border border-cyan-400/12 bg-[rgba(4,10,20,0.96)] p-5">
                   <div className="mono-ui mb-4 text-sm tracking-[0.24em] text-cyan-300">
@@ -281,7 +390,7 @@ export default function ThreatDetailModal({
                   {isLoadingAnalysis ? (
                     <div className="flex min-h-[240px] items-center justify-center">
                       <div className="flex items-center gap-3 text-cyan-200">
-                        <span className="h-3 w-3 rounded-full bg-cyan-300 animate-pulse" />
+                        <span className="h-3 w-3 animate-pulse rounded-full bg-cyan-300" />
                         <span className="mono-ui text-sm uppercase tracking-[0.2em]">
                           Parsing indicators
                         </span>
@@ -314,31 +423,29 @@ export default function ThreatDetailModal({
                   </button>
                 </div>
               </div>
-            )}
+            ) : null}
 
-            {view === "mitigation" && (
+            {view === "mitigation" && threat ? (
               <div className="space-y-5 p-5">
-                <div className="rounded-md border border-white/6 bg-black p-5">
-                  <div className="mono-ui min-h-[280px] space-y-3 text-sm leading-6 text-emerald-300">
-                    {mitigationLines.map((line, index) => (
-                      <div
-                        key={`${line}-${index}`}
-                        className="fade-in-highlight"
-                      >
-                        {line}
-                      </div>
-                    ))}
-
-                    {!mitigationComplete && (
-                      <div className="cursor-blink text-emerald-400">|</div>
-                    )}
-
-                    {mitigationComplete && (
-                      <div className="mt-4 rounded-md border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-center font-semibold tracking-[0.24em] text-emerald-200">
-                        THREAT NEUTRALIZED
-                      </div>
-                    )}
+                <div className="rounded-md border border-emerald-400/14 bg-black p-5">
+                  <div className="mono-ui mb-4 text-sm tracking-[0.22em] text-emerald-300">
+                    // CONTAINMENT TERMINAL
                   </div>
+
+                  <div className="mono-ui min-h-[280px] space-y-2 text-sm text-emerald-300">
+                    {mitigationLines.map((line) => (
+                      <div key={line}>{line}</div>
+                    ))}
+                    {!mitigationComplete ? (
+                      <div className="cursor-blink text-emerald-400">|</div>
+                    ) : null}
+                  </div>
+
+                  {mitigationComplete ? (
+                    <div className="mt-5 rounded-md border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-center text-sm font-semibold tracking-[0.26em] text-emerald-200">
+                      THREAT NEUTRALIZED
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="flex justify-between">
@@ -358,7 +465,7 @@ export default function ThreatDetailModal({
                   </button>
                 </div>
               </div>
-            )}
+            ) : null}
           </motion.div>
         </motion.div>
       ) : null}

@@ -64,6 +64,7 @@ export interface AdminStatePayload {
   enabled_threat_types: string[];
   enabled_severities: string[];
   auto_refresh_live_feed: boolean;
+  live_feed_refresh_minutes: number;
   ws_broadcast_interval_seconds: number;
   effective_source: string;
   otx_api_key_configured: boolean;
@@ -91,6 +92,7 @@ export interface AdminStateUpdateRequest {
   enabled_threat_types?: string[];
   enabled_severities?: string[];
   auto_refresh_live_feed?: boolean;
+  live_feed_refresh_minutes?: number;
   ws_broadcast_interval_seconds?: number;
 }
 

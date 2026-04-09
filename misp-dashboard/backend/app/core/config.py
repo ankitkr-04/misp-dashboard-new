@@ -17,10 +17,15 @@ class Settings(BaseSettings):
     PUBLIC_MISP_MAX_ITEMS: int = 90
     PUBLIC_MISP_IPS_PER_EVENT: int = 3
     LIVE_FEED_REFRESH_MINUTES: int = 30
-    LIVE_FEED_REQUEST_TIMEOUT_SECONDS: float = 12.0
+    LIVE_FEED_REQUEST_TIMEOUT_SECONDS: float = 20.0
     AUTO_REFRESH_LIVE_FEED: bool = True
     ENABLE_IP_GEOLOOKUP: bool = True
     IP_GEOLOOKUP_URL_TEMPLATE: str = "https://ipwho.is/{ip}"
+    OTX_PULSES_URL: str = "https://otx.alienvault.com/api/v1/pulses/subscribed"
+    OTX_PULSE_PAGE_SIZE: int = 4
+    OTX_PULSE_MAX_PAGES: int = 2
+    OTX_MAX_ITEMS: int = 90
+    OTX_IPS_PER_PULSE: int = 3
 
     model_config = SettingsConfigDict(
         env_file=(".env", "../.env"),

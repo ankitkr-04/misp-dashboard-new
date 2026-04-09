@@ -65,6 +65,7 @@ class AdminStatePayload(BaseModel):
     enabled_threat_types: list[str]
     enabled_severities: list[str]
     auto_refresh_live_feed: bool
+    live_feed_refresh_minutes: float
     ws_broadcast_interval_seconds: float
     effective_source: str
     otx_api_key_configured: bool
@@ -92,4 +93,5 @@ class AdminStateUpdateRequest(BaseModel):
     enabled_threat_types: list[str] | None = None
     enabled_severities: list[str] | None = None
     auto_refresh_live_feed: bool | None = None
+    live_feed_refresh_minutes: float | None = None
     ws_broadcast_interval_seconds: float | None = None

@@ -14,6 +14,8 @@ export const VELOCITY_HISTORY_POINTS = 60;
 export const TOPBAR_FLASH_MS = 2000;
 export const MITIGATION_DELAY_MIN_MS = 300;
 export const MITIGATION_DELAY_MAX_MS = 600;
+export const THREAT_HISTORY_LIMIT = 24;
+export const ANALYTICS_LIST_LIMIT = 6;
 export const TERMINAL_SCROLL_BOTTOM_BEHAVIOR: ScrollBehavior = "smooth";
 export const GLOBE_BACKGROUND = "#000008";
 export const GLOBE_TEXTURE_URL = "https://unpkg.com/three-globe/example/img/earth-night.jpg";
@@ -30,6 +32,16 @@ export const GLOBE_LABEL_SIZE = 0.7;
 export const GLOBE_LABEL_DOT_RADIUS = 0.28;
 export const GLOBE_DECAY_SWEEP_MS = 500;
 export const GLOBE_RESIZE_FALLBACK = { width: 640, height: 640 };
+export const GLOBE_VIEW_MODE_LABELS = {
+  globe: "3D Globe",
+  map: "2D Map",
+} as const;
+export const MAP_LATITUDE_STEP = 30;
+export const MAP_LONGITUDE_STEP = 30;
+export const MAP_CURVE_HEIGHT = 54;
+export const MAP_SOURCE_POINT_RADIUS = 4;
+export const MAP_HQ_POINT_RADIUS = 7;
+export const MAP_LABEL_LIMIT = 10;
 export const MITIGATED_COLOR = "#22c55e";
 export const MODAL_SPRING = { type: "spring", stiffness: 180, damping: 22 } as const;
 export const ROUTES = {
@@ -39,6 +51,7 @@ export const ROUTES = {
 export const DATA_SOURCE_LABELS = {
   mock: "DEMO SIMULATION",
   public_misp: "PUBLIC MISP FEED",
+  alienvault_otx: "ALIENVAULT OTX",
 } as const;
 export const SIMULATION_PROFILE_LABELS = {
   balanced: "Balanced",
@@ -51,11 +64,14 @@ export const ADMIN_PILLAR_COPY = {
   demo:
     "Demo mode uses the in-memory generator and honors your profile, severity, and threat-type toggles.",
   live:
-    "Live mode pulls real indicators from the public MISP feed and enriches IPs with lightweight geolocation.",
+    "Live mode pulls real indicators from the selected source, either the public MISP feed or AlienVault OTX, and enriches IPs with lightweight geolocation.",
 } as const;
 export const STREAM_INTERVAL_MIN_SECONDS = 0.2;
 export const STREAM_INTERVAL_MAX_SECONDS = 10;
 export const STREAM_INTERVAL_STEP_SECONDS = 0.1;
+export const LIVE_REFRESH_MINUTES_MIN = 1;
+export const LIVE_REFRESH_MINUTES_MAX = 120;
+export const LIVE_REFRESH_MINUTES_STEP = 1;
 export const CONNECTION_STATUS_TEXT = {
   connected: "LINK STABLE",
   disconnected: "LINK LOST",

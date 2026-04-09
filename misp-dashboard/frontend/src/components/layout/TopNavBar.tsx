@@ -188,7 +188,10 @@ export default function TopNavBar({
               </span>
             </div>
           </div>
-          <SecretTrigger onTriggered={() => setFlashActive(true)} />
+          <SecretTrigger
+            disabled={Boolean(adminState && !adminState.state.demo_mode)}
+            onTriggered={() => setFlashActive(true)}
+          />
         </div>
       </div>
     </motion.header>

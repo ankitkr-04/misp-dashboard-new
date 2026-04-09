@@ -35,7 +35,11 @@ async def update_admin_state(payload: AdminStateUpdateRequest) -> AdminStateResp
 @router.post("/admin/refresh-feed", response_model=AdminStateResponse)
 async def refresh_live_feed() -> AdminStateResponse:
     snapshot = control_plane.get_runtime_snapshot()
-    live_feed_service.refresh(snapshot["data_source"], force=True)
+    live_feed_service.refresh(
+        snapshot["data_source"],
+        force=True,
+        refresh_minutes=float(snapshot["live_feed_refresh_minutes"]),
+    )
     return control_plane.build_response(live_feed_service.get_status(snapshot["data_source"]))
 
 

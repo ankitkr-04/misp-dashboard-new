@@ -5,3 +5,5 @@ misp-dashboard/frontend/dist/
 misp-dashboard/**/__pycache__/
 misp-dashboard/**/*.pyc
 misp-dashboard/.DS_Store
+
+.vscode/

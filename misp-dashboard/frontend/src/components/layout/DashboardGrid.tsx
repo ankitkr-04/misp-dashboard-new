@@ -7,20 +7,30 @@ import type { HqNode, ThreatPayload } from "../../types/threat";
 type DashboardGridProps = {
   threats: ThreatPayload[];
   selectedThreat: ThreatPayload | null;
+  selectedThreatHistoryType: string | null;
+  relatedThreatHistory: ThreatPayload[];
   mitigatedIds: Set<string>;
   activeHqs: HqNode[];
   onSelectThreat: (threat: ThreatPayload) => void;
+  onOpenThreatHistory: (threatType: string) => void;
+  onSelectThreatFromHistory: (threat: ThreatPayload) => void;
   onCloseThreat: () => void;
+  onBackToThreatHistory: () => void;
   onMitigateThreat: (id: string) => void;
 };
 
 export default function DashboardGrid({
   threats,
   selectedThreat,
+  selectedThreatHistoryType,
+  relatedThreatHistory,
   mitigatedIds,
   activeHqs,
   onSelectThreat,
+  onOpenThreatHistory,
+  onSelectThreatFromHistory,
   onCloseThreat,
+  onBackToThreatHistory,
   onMitigateThreat,
 }: DashboardGridProps) {
   return (
@@ -35,13 +45,20 @@ export default function DashboardGrid({
           activeHqs={activeHqs}
           mitigatedIds={mitigatedIds}
         />
-        <AnalyticsPanel threats={threats} />
+        <AnalyticsPanel
+          threats={threats}
+          onOpenThreatHistory={onOpenThreatHistory}
+        />
       </div>
 
       <ThreatDetailModal
         threat={selectedThreat}
+        threatHistoryType={selectedThreatHistoryType}
+        relatedThreats={relatedThreatHistory}
         onClose={onCloseThreat}
         onMitigate={onMitigateThreat}
+        onSelectRelatedThreat={onSelectThreatFromHistory}
+        onBackToHistory={onBackToThreatHistory}
       />
     </main>
   );

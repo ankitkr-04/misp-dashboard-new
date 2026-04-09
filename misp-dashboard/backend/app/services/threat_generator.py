@@ -181,7 +181,7 @@ SIMULATION_PROFILES = [
     "botnet",
 ]
 
-LIVE_DATA_SOURCES = ["public_misp"]
+LIVE_DATA_SOURCES = ["public_misp", "alienvault_otx"]
 SEVERITY_LEVELS = ["Critical", "High", "Medium", "Low"]
 SEVERITY_WEIGHTS = [0.10, 0.25, 0.40, 0.25]
 BURST_SEVERITY_WEIGHTS = [0.45, 0.35, 0.15, 0.05]
@@ -317,6 +317,46 @@ HQ_NODES = [
         city="London",
         country="GB",
         accent="#eab308",
+    ),
+    HQNode(
+        id="tokyo",
+        name="Tokyo Ops",
+        ip="10.0.60.1",
+        lat=35.6895,
+        lon=139.6917,
+        city="Tokyo",
+        country="JP",
+        accent="#fb7185",
+    ),
+    HQNode(
+        id="dubai",
+        name="Dubai Transit",
+        ip="10.0.70.1",
+        lat=25.2048,
+        lon=55.2708,
+        city="Dubai",
+        country="AE",
+        accent="#22d3ee",
+    ),
+    HQNode(
+        id="toronto",
+        name="Toronto Mesh",
+        ip="10.0.80.1",
+        lat=43.6532,
+        lon=-79.3832,
+        city="Toronto",
+        country="CA",
+        accent="#818cf8",
+    ),
+    HQNode(
+        id="sydney",
+        name="Sydney Shield",
+        ip="10.0.90.1",
+        lat=-33.8688,
+        lon=151.2093,
+        city="Sydney",
+        country="AU",
+        accent="#34d399",
     ),
 ]
 HQ_BY_ID = {hq.id: hq for hq in HQ_NODES}

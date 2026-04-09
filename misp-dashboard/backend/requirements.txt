@@ -3,5 +3,5 @@ uvicorn[standard]
 websockets
 pydantic
 pydantic-settings
-google-generativeai
+google-genai
 python-dotenv

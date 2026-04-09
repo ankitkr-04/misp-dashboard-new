@@ -54,7 +54,7 @@ async def _stream_threats() -> None:
 
         runtime_state = control_plane.get_runtime_snapshot()
 
-        if control_plane.consume_god_mode():
+        if runtime_state["demo_mode"] and control_plane.consume_god_mode():
             burst = generate_burst(settings.GOD_MODE_BURST_COUNT, runtime_state)
 
             for threat in burst:
@@ -74,7 +74,9 @@ async def _stream_threats() -> None:
         else:
             threat = await asyncio.to_thread(live_feed_service.next_threat, runtime_state)
             if threat is None:
-                threat = generate_threat(runtime_state | {"simulation_profile": "balanced"})
+                await _broadcast_telemetry()
+                await asyncio.sleep(min(runtime_state["ws_broadcast_interval_seconds"], 1.0))
+                continue
 
         telemetry_service.increment()
         _threat_counter += 1

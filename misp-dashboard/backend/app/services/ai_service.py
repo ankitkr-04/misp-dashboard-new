@@ -1,25 +1,28 @@
 import asyncio
 import json
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from app.core.config import settings
 
 
-GEMINI_MODEL = "gemini-1.5-flash"
+GEMINI_MODEL = "gemini-2.5-flash"
 
 if settings.GEMINI_API_KEY:
-    genai.configure(api_key=settings.GEMINI_API_KEY)
-    _model = genai.GenerativeModel(GEMINI_MODEL)
+    _client = genai.Client(
+        api_key=settings.GEMINI_API_KEY,
+        http_options=types.HttpOptions(api_version="v1"),
+    )
 else:
-    _model = None
+    _client = None
 
 
-FALLBACK_ANALYSIS = """1. SUMMARY (2 sentences): This indicator matches a high-risk malicious pattern that merits immediate triage. The combination of malware family, origin metadata, and tagging suggests active intrusion or staging activity against the protected environment.
+FALLBACK_ANALYSIS = """1. SUMMARY: This indicator matches a high-risk malicious pattern that merits immediate triage. The combination of malware family, origin metadata, and tagging suggests active intrusion or staging activity against the protected environment.
 
-2. ATTACKER PROFILE (1 sentence): The source profile is inconclusive, but the indicator set is consistent with an organized financially motivated intrusion cluster.
+2. ATTACKER PROFILE: The source profile is inconclusive, but the indicator set is consistent with an organized financially motivated intrusion cluster.
 
-3. MITIGATION (3 bullet points):
+3. MITIGATION:
 - Block the source IP and related network indicators at perimeter controls immediately.
 - Push the SHA256 hash and tags into endpoint, email, and SIEM detections for rapid scoping.
 - Hunt for lateral movement, persistence, and follow-on payload execution tied to the same malware family."""
@@ -46,11 +49,20 @@ async def analyze_threat(threat: dict) -> str:
         f"Threat data: {json.dumps(stripped_threat, separators=(',', ':'))}"
     )
 
-    if _model is None:
+    if _client is None:
         return FALLBACK_ANALYSIS
 
     try:
-        response = await asyncio.to_thread(_model.generate_content, prompt)
+        response = await asyncio.to_thread(
+            lambda: _client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.2,
+                    max_output_tokens=400,
+                ),
+            )
+        )
         analysis_text = getattr(response, "text", "").strip()
         return analysis_text or FALLBACK_ANALYSIS
     except Exception:
