@@ -1,4 +1,7 @@
 {
   "python.terminal.useEnvFile": true,
-  "python.envFile": "${workspaceFolder}/misp-dashboard/.env"
+  "python.envFile": "${workspaceFolder}/misp-dashboard/.env",
+  "python.analysis.typeCheckingMode": "standard",
+  "python.analysis.diagnosticSeverityOverrides": {},
+  "editor.formatOnSave": true
 }
