@@ -20,10 +20,8 @@ export const INSIGHT_ROTATION_INTERVAL_MS = 12000;
 export const INSIGHT_LOOKBACK_SECONDS = 60;
 export const SPARKLINE_POINTS = 10;
 export const SPARKLINE_WINDOW_SECONDS = 10;
-export const DASHBOARD_TICKER_HEIGHT_PX = 34;
-export const DASHBOARD_TICKER_DURATION_SECONDS = 38;
 export const TERMINAL_SCROLL_BOTTOM_BEHAVIOR: ScrollBehavior = "smooth";
-export const GLOBE_BACKGROUND = "#000008";
+export const GLOBE_BACKGROUND = "#f8fafc";
 export const GLOBE_TEXTURE_URL = "https://unpkg.com/three-globe/example/img/earth-night.jpg";
 export const GLOBE_BUMP_URL = "https://unpkg.com/three-globe/example/img/earth-topology.png";
 export const GLOBE_AUTO_ROTATE_SPEED = 0.4;
@@ -39,8 +37,8 @@ export const GLOBE_LABEL_DOT_RADIUS = 0.28;
 export const GLOBE_DECAY_SWEEP_MS = 500;
 export const GLOBE_RESIZE_FALLBACK = { width: 640, height: 640 };
 export const GLOBE_VIEW_MODE_LABELS = {
-  globe: "3D Globe",
-  map: "2D Map",
+  map: "Map",
+  globe: "Globe",
 } as const;
 export const MAP_LATITUDE_STEP = 30;
 export const MAP_LONGITUDE_STEP = 30;
@@ -51,9 +49,9 @@ export const MAP_LABEL_LIMIT = 10;
 export const MAP_GEOGRAPHY_URL =
   "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 export const MAP_PROJECTION_SCALE = 165;
-export const MAP_COUNTRY_FILL = "#112536";
-export const MAP_COUNTRY_STROKE = "rgba(125, 211, 252, 0.18)";
-export const MAP_GRATICULE_STROKE = "rgba(148,163,184,0.16)";
+export const MAP_COUNTRY_FILL = "#e5e7eb";
+export const MAP_COUNTRY_STROKE = "rgba(100, 116, 139, 0.24)";
+export const MAP_GRATICULE_STROKE = "rgba(100,116,139,0.18)";
 export const MAP_ROUTE_STROKE_MULTIPLIER = 2.1;
 export const MAP_VIEWBOX = {
   width: 1000,
@@ -72,6 +70,10 @@ export const MITIGATED_COLOR = "#22c55e";
 export const MODAL_SPRING = { type: "spring", stiffness: 180, damping: 22 } as const;
 export const ROUTES = {
   dashboard: "/",
+  feed: "/feed",
+  geography: "/geography",
+  analytics: "/analytics",
+  investigations: "/investigations",
   admin: "/admin",
 } as const;
 export const DATA_SOURCE_LABELS = {
@@ -99,8 +101,8 @@ export const LIVE_REFRESH_MINUTES_MIN = 1;
 export const LIVE_REFRESH_MINUTES_MAX = 120;
 export const LIVE_REFRESH_MINUTES_STEP = 1;
 export const CONNECTION_STATUS_TEXT = {
-  connected: "LINK STABLE",
-  disconnected: "LINK LOST",
+  connected: "Connected",
+  disconnected: "Disconnected",
 } as const;
 export const LIVE_FEED_STATUS_LABELS = {
   idle: "Idle",
@@ -130,13 +132,6 @@ export const THREAT_TYPE_DESCRIPTIONS = {
   Exploit: "Abuses a software weakness to gain execution, elevate access, or deploy malware.",
   Botnet: "Coordinates many infected devices into one distributed attack or persistence platform.",
 } as const;
-export const DASHBOARD_TICKER_HEADLINES = [
-  "[CVE-2026-1045] Critical zero-day exploitation observed against exposed reverse proxies",
-  "[ALERT] AlienVault OTX reports fresh botnet clustering activity across multiple ASN ranges",
-  "[WATCH] Credential-harvest campaigns continue targeting cloud SSO entry points this week",
-  "[NOTICE] Public MISP feed shows continued overlap between ransomware loaders and phishing lures",
-  "[SOC] Elevated command-and-control traffic should trigger beaconing hunts across endpoint telemetry",
-] as const;
 export const ARC_STROKE_BY_SEVERITY: Record<string, number> = {
   Critical: 1.0,
   High: 0.75,

@@ -34,7 +34,7 @@ export default function TypewriterText({
   return (
     <span className="whitespace-pre-wrap">
       {visibleText}
-      {isTyping ? <span className="cursor-blink text-cyan-300">|</span> : null}
+      {isTyping ? <span className="cursor-blink text-sky-300">|</span> : null}
     </span>
   );
 }

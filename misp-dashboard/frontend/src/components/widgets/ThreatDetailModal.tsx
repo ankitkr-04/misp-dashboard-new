@@ -195,12 +195,12 @@ export default function ThreatDetailModal({
           >
             <div className="flex items-center justify-between border-b border-white/8 px-5 py-4">
               <div>
-                <h2 className="mono-ui text-sm tracking-[0.24em] text-[var(--color-accent)]">
-                  {showHistoryView ? "ATTACK HISTORY" : "THREAT INVESTIGATION"}
+                <h2 className="text-sm font-semibold text-slate-100">
+                  {showHistoryView ? "Event History" : "Threat Investigation"}
                 </h2>
                 <p className="text-xs text-slate-400">
                   {showHistoryView
-                    ? `${threatHistoryType} lane // ${relatedThreats.length} recent hits`
+                    ? `${threatHistoryType} lane · ${relatedThreats.length} recent records`
                     : `Threat ID ${threat?.id ?? "n/a"}`}
                 </p>
               </div>
@@ -230,36 +230,30 @@ export default function ThreatDetailModal({
             {showHistoryView ? (
               <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
                 <div className="grid gap-3 md:grid-cols-3">
-                  <div className="rounded-md border border-white/8 bg-black/18 p-4">
-                    <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                      Buffered Attacks
-                    </div>
+                  <div className="rounded-md border border-white/8 bg-white/[0.025] p-4">
+                    <div className="text-xs font-medium text-slate-500">Buffered Events</div>
                     <div className="mt-2 text-2xl font-semibold text-slate-100">
                       {relatedThreats.length}
                     </div>
                   </div>
-                  <div className="rounded-md border border-white/8 bg-black/18 p-4">
-                    <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                      Critical Hits
-                    </div>
+                  <div className="rounded-md border border-white/8 bg-white/[0.025] p-4">
+                    <div className="text-xs font-medium text-slate-500">Critical Events</div>
                     <div className="mt-2 text-2xl font-semibold text-rose-300">
                       {historyCriticalCount}
                     </div>
                   </div>
-                  <div className="rounded-md border border-white/8 bg-black/18 p-4">
-                    <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
-                      Source Countries
-                    </div>
+                  <div className="rounded-md border border-white/8 bg-white/[0.025] p-4">
+                    <div className="text-xs font-medium text-slate-500">Source Countries</div>
                     <div className="mt-2 text-2xl font-semibold text-slate-100">
                       {uniqueSourceCountries}
                     </div>
                   </div>
                 </div>
 
-                <div className="rounded-md border border-white/8 bg-black/18 p-3">
+                <div className="rounded-md border border-white/8 bg-white/[0.025] p-3">
                   {relatedThreats.length === 0 ? (
                     <div className="flex min-h-[240px] items-center justify-center text-sm text-slate-500">
-                      No attacks of this type are currently buffered.
+                      No events of this type are currently buffered.
                     </div>
                   ) : (
                     <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
@@ -279,15 +273,15 @@ export default function ThreatDetailModal({
                               </span>
                             </div>
                             <div className="mt-2 text-xs text-slate-400">
-                              {item.malware_family} // {item.source} // {item.target_hq_name}
+                              {item.malware_family} · {item.source} · {item.target_hq_name}
                             </div>
                           </div>
                           <div className="shrink-0 text-right">
-                            <div className="mono-ui text-xs text-slate-400">
+                            <div className="text-xs text-slate-400">
                               {formatTimestamp(item.timestamp)}
                             </div>
-                            <div className="mt-2 text-xs uppercase tracking-[0.18em] text-cyan-300">
-                              Open Investigation
+                            <div className="mt-2 text-xs font-semibold text-sky-300">
+                              Open investigation
                             </div>
                           </div>
                         </button>
@@ -301,26 +295,26 @@ export default function ThreatDetailModal({
             {view === "detail" && threat ? (
               <div className="min-h-0 flex-1 overflow-y-auto p-5">
                 <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-                <div className="rounded-md border border-white/8 bg-black/22 p-4">
+                <div className="rounded-md border border-white/8 bg-white/[0.025] p-4">
                   <div className="mono-ui space-y-2 text-sm">
                     {renderDetailRows(threat).map(([key, value]) => (
                       <div
                         key={key}
                         className="flex items-start gap-3 border-b border-white/5 pb-2 last:border-b-0 last:pb-0"
                       >
-                        <span className="min-w-[112px] text-cyan-300">{key}</span>
+                        <span className="min-w-[112px] text-sky-300">{key}</span>
                         <span className="break-all text-slate-200">{value}</span>
                       </div>
                     ))}
                     <div className="flex items-start gap-3 pt-2">
-                      <span className="min-w-[112px] text-cyan-300">tags</span>
+                      <span className="min-w-[112px] text-sky-300">tags</span>
                       <span className="break-all text-slate-200">{threat.tags.join(", ")}</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="flex flex-col gap-4">
-                  <div className="rounded-md border border-white/8 bg-black/18 p-4">
+                  <div className="rounded-md border border-white/8 bg-white/[0.025] p-4">
                     <div className="mb-4 flex items-center justify-between">
                       <span className="text-xs uppercase tracking-[0.22em] text-slate-400">
                         Severity
@@ -368,7 +362,7 @@ export default function ThreatDetailModal({
                       type="button"
                       className={`rounded-md border px-4 py-2 text-sm transition ${
                         aiEnabled
-                          ? "border-cyan-400/30 bg-cyan-400/8 text-cyan-200 hover:bg-cyan-400/14"
+                          ? "border-sky-400/30 bg-sky-400/8 text-sky-200 hover:bg-sky-400/14"
                           : "cursor-not-allowed border-slate-600/60 bg-slate-700/20 text-slate-500"
                       }`}
                       disabled={!aiEnabled}
@@ -391,18 +385,16 @@ export default function ThreatDetailModal({
 
             {view === "analysis" && threat ? (
               <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
-                <div className="rounded-md border border-cyan-400/12 bg-[rgba(4,10,20,0.96)] p-5">
-                  <div className="mono-ui mb-4 text-sm tracking-[0.24em] text-cyan-300">
-                    // GEMINI SOC ANALYST
+                <div className="rounded-md border border-white/8 bg-white/[0.025] p-5">
+                  <div className="mb-4 text-sm font-semibold text-slate-100">
+                    Gemini SOC Analyst
                   </div>
 
                   {isLoadingAnalysis ? (
                     <div className="flex min-h-[240px] items-center justify-center">
-                      <div className="flex items-center gap-3 text-cyan-200">
-                        <span className="h-3 w-3 animate-pulse rounded-full bg-cyan-300" />
-                        <span className="mono-ui text-sm uppercase tracking-[0.2em]">
-                          Parsing indicators
-                        </span>
+                      <div className="flex items-center gap-3 text-sky-200">
+                        <span className="h-3 w-3 rounded-full bg-sky-300" />
+                        <span className="text-sm font-semibold">Parsing indicators</span>
                       </div>
                     </div>
                   ) : (
@@ -436,23 +428,23 @@ export default function ThreatDetailModal({
 
             {view === "mitigation" && threat ? (
               <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
-                <div className="rounded-md border border-emerald-400/14 bg-black p-5">
-                  <div className="mono-ui mb-4 text-sm tracking-[0.22em] text-emerald-300">
-                    // CONTAINMENT TERMINAL
+                <div className="rounded-md border border-white/8 bg-white/[0.025] p-5">
+                  <div className="mb-4 text-sm font-semibold text-slate-100">
+                    Containment Workflow
                   </div>
 
-                  <div className="mono-ui min-h-[280px] space-y-2 text-sm text-emerald-300">
+                  <div className="mono-ui min-h-[280px] space-y-2 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
                     {mitigationLines.map((line) => (
                       <div key={line}>{line}</div>
                     ))}
                     {!mitigationComplete ? (
-                      <div className="cursor-blink text-emerald-400">|</div>
+                      <div className="cursor-blink text-slate-400">|</div>
                     ) : null}
                   </div>
 
                   {mitigationComplete ? (
-                    <div className="mt-5 rounded-md border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-center text-sm font-semibold tracking-[0.26em] text-emerald-200">
-                      THREAT NEUTRALIZED
+                    <div className="mt-5 rounded-md border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-center text-sm font-semibold text-emerald-200">
+                      Containment actions completed
                     </div>
                   ) : null}
                 </div>

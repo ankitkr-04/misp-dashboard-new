@@ -9,12 +9,11 @@ export default function StatusBadge({ severity }: StatusBadgeProps) {
 
   return (
     <span
-      className="mono-ui inline-flex items-center rounded-md border px-2 py-1 text-[11px] uppercase tracking-[0.18em]"
+      className="inline-flex items-center rounded-md border px-2 py-1 text-[11px] font-semibold"
       style={{
         color,
         borderColor: `${color}55`,
         backgroundColor: `${color}14`,
-        boxShadow: `0 0 12px ${color}35`,
       }}
     >
       {severity}

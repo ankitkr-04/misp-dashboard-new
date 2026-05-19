@@ -68,7 +68,7 @@ function countEntries(
       count,
       color:
         palette?.[label] ??
-        ["#00ff88", "#38bdf8", "#f97316", "#a855f7", "#eab308", "#14b8a6"][index % 6],
+        ["#7dd3fc", "#38bdf8", "#f97316", "#a855f7", "#eab308", "#14b8a6"][index % 6],
     }));
 }
 
@@ -129,7 +129,7 @@ function average(values: number[]) {
 function buildInsights(threats: ThreatPayload[], velocityData: VelocityPoint[]) {
   if (threats.length === 0) {
     return [
-      "AI Alert: Waiting for enough attacks to form a stable pattern in the current buffer.",
+      "Waiting for enough events to form a stable pattern in the current buffer.",
     ];
   }
 
@@ -157,11 +157,11 @@ function buildInsights(threats: ThreatPayload[], velocityData: VelocityPoint[]) 
     : 0;
 
   return [
-    `AI Alert: ${dominantTypeShare}% of recent traffic is ${topType?.label ?? "hostile activity"} targeting ${topHq?.label ?? "the active HQ mesh"}. ${topFamily?.label ?? "Commodity tooling"} is the leading payload family in the current window.`,
-    `AI Alert: ${highShare}% of the last ${workingSet.length} attacks are High or Critical severity, with ${topCountry?.label ?? "multiple source regions"} contributing the largest source share.`,
+    `${dominantTypeShare}% of recent traffic is ${topType?.label ?? "hostile activity"} targeting ${topHq?.label ?? "the active HQ mesh"}. ${topFamily?.label ?? "Commodity tooling"} is the leading payload family in the current window.`,
+    `${highShare}% of the last ${workingSet.length} events are High or Critical severity, with ${topCountry?.label ?? "multiple source regions"} contributing the largest source share.`,
     latestVelocity > priorVelocity && priorVelocity > 0
-      ? `AI Alert: Attack velocity is up ${velocityDelta}% versus the recent baseline. ${topHq?.label ?? "The busiest HQ"} is absorbing the sharpest pressure right now.`
-      : `AI Alert: Attack tempo is stable, but ${topFamily?.label ?? "the leading malware family"} remains persistent across the active routes and deserves targeted hunting.`,
+      ? `Event velocity is up ${velocityDelta}% versus the recent baseline. ${topHq?.label ?? "The busiest HQ"} is absorbing the sharpest pressure right now.`
+      : `Event tempo is stable, but ${topFamily?.label ?? "the leading malware family"} remains persistent across the active routes and deserves targeted hunting.`,
   ];
 }
 
@@ -179,14 +179,14 @@ function StatList({
   const highest = Math.max(...entries.map((entry) => entry.count), 1);
 
   return (
-    <div className="rounded-md border border-white/8 bg-black/18 p-4">
+    <div className="rounded-md border border-white/8 bg-white/[0.025] p-4">
       <div className="mb-3">
-        <div className="mono-ui text-xs tracking-[0.2em] text-[var(--color-accent)]">{title}</div>
+        <div className="text-sm font-semibold text-slate-100">{title}</div>
         <p className="mt-1 text-xs text-slate-500">{description}</p>
       </div>
 
       {entries.length === 0 ? (
-        <div className="text-sm text-slate-500">No attack samples in buffer yet.</div>
+        <div className="text-sm text-slate-500">No event samples in buffer yet.</div>
       ) : (
         <div className="space-y-3">
           {entries.map((entry) => {
@@ -215,7 +215,7 @@ function StatList({
                         />
                       </svg>
                     ) : null}
-                    <span className="mono-ui text-slate-100">{entry.count}</span>
+                    <span className="text-xs font-semibold text-slate-100">{entry.count}</span>
                   </div>
                 </div>
                 <div className="h-2 rounded-full bg-white/6">
@@ -224,7 +224,6 @@ function StatList({
                     style={{
                       width: `${Math.max((entry.count / highest) * 100, 8)}%`,
                       backgroundColor: entry.color,
-                      boxShadow: `0 0 16px ${entry.color}33`,
                     }}
                   />
                 </div>
@@ -310,11 +309,11 @@ export default function AnalyticsPanel({
   const hqPressure = countEntries(threats.map((threat) => threat.target_hq_name));
   const malwareLeaders = countEntries(threats.map((threat) => threat.malware_family));
   const sourceCountries = countEntries(threats.map((threat) => threat.src_geo.country));
-  const recentAttackLanes = threats.slice().reverse().slice(0, ANALYTICS_LIST_LIMIT);
+  const recentRoutes = threats.slice().reverse().slice(0, ANALYTICS_LIST_LIMIT);
   const insights = aiEnabled
     ? buildInsights(threats, velocityData)
     : [
-        "AI Insight is paused from Admin to preserve Gemini quota. Live charts, threat history, and route analytics continue running locally.",
+        "Analyst insight is paused from Admin to preserve Gemini quota. Live charts, threat history, and route analytics continue running locally.",
       ];
   const activeInsight = insights[insightIndex % insights.length];
 
@@ -334,22 +333,18 @@ export default function AnalyticsPanel({
   return (
     <section className="panel-shell flex h-full min-h-0 flex-col overflow-hidden">
       <div className="border-b border-white/8 px-4 py-3">
-        <h2 className="mono-ui text-sm tracking-[0.22em] text-[var(--color-accent)]">
-          INTELLIGENCE PANEL
-        </h2>
+        <h2 className="text-sm font-semibold text-slate-100">Analytics</h2>
         <p className="text-xs text-slate-400">
-          Threat mix, tempo, AI summaries, pressure trends, and recent attack lanes
+          Threat mix, tempo, summaries, pressure trends, and recent routes
         </p>
       </div>
 
       <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto px-3 py-3">
-        <div className="rounded-md border border-white/8 bg-black/18 p-4">
+        <div className="rounded-md border border-white/8 bg-white/[0.025] p-4">
           <div className="mb-3">
-            <div className="mono-ui text-xs tracking-[0.2em] text-[var(--color-accent)]">
-              THREAT MIX
-            </div>
+            <div className="text-sm font-semibold text-slate-100">Threat Mix</div>
             <p className="mt-1 text-xs text-slate-500">
-              Drill into any category to inspect the previous attacks in that lane.
+              Drill into any category to inspect recent events in that lane.
             </p>
           </div>
 
@@ -392,7 +387,7 @@ export default function AnalyticsPanel({
               <button
                 key={entry.type}
                 type="button"
-                className="rounded-md border border-white/8 bg-black/20 px-3 py-2 text-left transition hover:border-white/16 hover:bg-white/5"
+                className="rounded-md border border-white/8 bg-white/[0.025] px-3 py-2 text-left transition hover:border-white/16 hover:bg-white/[0.05]"
                 onClick={() => onOpenThreatHistory(entry.type)}
               >
                 <div className="flex items-center justify-between gap-3">
@@ -403,21 +398,19 @@ export default function AnalyticsPanel({
                     />
                     {entry.type}
                   </span>
-                  <span className="mono-ui text-xs text-slate-100">{entry.count}</span>
+                  <span className="text-xs font-semibold text-slate-100">{entry.count}</span>
                 </div>
                 <div className="mt-2 text-[11px] text-slate-500">
-                  {entry.lastSeen ? `Last seen ${formatTime(entry.lastSeen)}` : "No hits in buffer"}
+                  {entry.lastSeen ? `Last seen ${formatTime(entry.lastSeen)}` : "No records in buffer"}
                 </div>
               </button>
             ))}
           </div>
         </div>
 
-        <div className="rounded-md border border-white/8 bg-black/18 p-4">
+        <div className="rounded-md border border-white/8 bg-white/[0.025] p-4">
           <div className="mb-3">
-            <div className="mono-ui text-xs tracking-[0.2em] text-[var(--color-accent)]">
-              ATTACK VELOCITY
-            </div>
+            <div className="text-sm font-semibold text-slate-100">Event Velocity</div>
             <p className="mt-1 text-xs text-slate-500">Observed arrivals per second</p>
           </div>
 
@@ -468,7 +461,7 @@ export default function AnalyticsPanel({
                 <Area
                   dataKey="value"
                   type="monotone"
-                  stroke="#00ff88"
+                  stroke="#7dd3fc"
                   strokeWidth={2}
                   fill="url(#velocityFill)"
                   isAnimationActive
@@ -479,76 +472,74 @@ export default function AnalyticsPanel({
           </div>
         </div>
 
-        <div className="rounded-md border border-cyan-400/12 bg-[linear-gradient(180deg,rgba(4,10,20,0.94)_0%,rgba(6,16,28,0.94)_100%)] p-4">
+        <div className="rounded-md border border-white/8 bg-white/[0.025] p-4">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
-              <div className="mono-ui text-xs tracking-[0.2em] text-cyan-300">LIVE AI INSIGHT</div>
+              <div className="text-sm font-semibold text-slate-100">Analyst Summary</div>
               <p className="mt-1 text-xs text-slate-500">
                 {aiEnabled
-                  ? "Plain-English interpretation of the active attack window"
+                  ? "Plain-English interpretation of the active event window"
                   : "Gemini-backed insight is paused to reduce API usage"}
               </p>
             </div>
             <span
               className={`h-2.5 w-2.5 rounded-full ${
-                aiEnabled ? "animate-pulse bg-cyan-300" : "bg-slate-500"
+                aiEnabled ? "bg-sky-300" : "bg-slate-500"
               }`}
             />
           </div>
-          <div className="rounded-md border border-cyan-400/10 bg-black/24 px-4 py-4 text-sm leading-7 text-slate-200">
+          <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700">
             {activeInsight}
           </div>
         </div>
 
         <StatList
-          title="SEVERITY LOAD"
+          title="Severity Load"
           description="How much of the active buffer sits in each severity tier."
           entries={severityCounts}
         />
         <StatList
-          title="HQ PRESSURE"
+          title="HQ Pressure"
           description="Which command centers are receiving the most inbound activity, with 10-second trend sparklines."
           entries={hqPressure}
           sparklines={hqPressureSparklines}
         />
         <StatList
-          title="MALWARE FAMILIES"
+          title="Malware Families"
           description="Families appearing most often in the current event window, plus immediate trend direction."
           entries={malwareLeaders}
           sparklines={malwareSparklines}
         />
         <StatList
-          title="SOURCE COUNTRIES"
-          description="Country mix inferred from the current attack sources."
+          title="Source Countries"
+          description="Country mix inferred from the current event sources."
           entries={sourceCountries}
         />
 
-        <div className="rounded-md border border-white/8 bg-black/18 p-4">
+        <div className="rounded-md border border-white/8 bg-white/[0.025] p-4">
           <div className="mb-3">
-            <div className="mono-ui text-xs tracking-[0.2em] text-[var(--color-accent)]">
-              RECENT LANES
-            </div>
+            <div className="text-sm font-semibold text-slate-100">Recent Routes</div>
             <p className="mt-1 text-xs text-slate-500">
-              The latest source-to-HQ routes flowing through the dashboard
+              Latest source-to-HQ routes flowing through the dashboard
             </p>
           </div>
 
-          {recentAttackLanes.length === 0 ? (
+          {recentRoutes.length === 0 ? (
             <div className="text-sm text-slate-500">
-              Waiting for attacks to populate the lane log.
+              Waiting for events to populate the route log.
             </div>
           ) : (
             <div className="space-y-2">
-              {recentAttackLanes.map((threat) => (
+              {recentRoutes.map((threat) => (
                 <div
                   key={threat.id}
-                  className="rounded-md border border-white/8 bg-white/3 px-3 py-2"
+                  className="rounded-md border border-white/8 bg-white/[0.025] px-3 py-2"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-xs text-slate-200">
                       {threat.src_geo.country} {"->"} {threat.target_hq_name}
                     </span>
-                    <span className="mono-ui text-[11px] text-slate-500">
+                    <span className="text-[11px] text-slate-500">
                       {formatTime(threat.timestamp)}
                     </span>
                   </div>

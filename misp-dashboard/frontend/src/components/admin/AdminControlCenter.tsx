@@ -43,7 +43,7 @@ function Panel({
   return (
     <div className="panel-shell flex h-full flex-col gap-4 p-5">
       <div>
-        <h2 className="mono-ui text-sm tracking-[0.22em] text-[var(--color-accent)]">{title}</h2>
+        <h2 className="text-sm font-semibold text-slate-100">{title}</h2>
         <p className="mt-1 text-sm text-slate-400">{description}</p>
       </div>
       {children}
@@ -61,8 +61,8 @@ function StatTile({
   hint?: string;
 }) {
   return (
-    <div className="rounded-md border border-white/8 bg-black/16 p-4">
-      <div className="text-xs uppercase tracking-[0.22em] text-slate-500">{label}</div>
+    <div className="rounded-md border border-white/8 bg-white/[0.025] p-4">
+      <div className="text-xs font-medium text-slate-500">{label}</div>
       <div className="mt-2 text-lg font-semibold text-slate-100">{value}</div>
       {hint ? <div className="mt-2 text-sm text-slate-400">{hint}</div> : null}
     </div>
@@ -87,10 +87,9 @@ function ToggleChip({
       type="button"
       className="rounded-md border px-3 py-2 text-sm transition disabled:cursor-not-allowed"
       style={{
-        borderColor: active ? `${accent ?? "#00ff88"}66` : "rgba(255,255,255,0.08)",
-        background: active ? `${accent ?? "#00ff88"}16` : "rgba(255,255,255,0.03)",
+        borderColor: active ? `${accent ?? "#7dd3fc"}66` : "rgba(255,255,255,0.08)",
+        background: active ? `${accent ?? "#7dd3fc"}16` : "rgba(255,255,255,0.03)",
         color: disabled ? "#64748b" : active ? "#f8fafc" : "#94a3b8",
-        boxShadow: active ? `0 0 12px ${accent ?? "#00ff88"}22` : "none",
         opacity: disabled ? 0.55 : 1,
       }}
       disabled={disabled}
@@ -147,10 +146,7 @@ function HqCard({
         </div>
         <span
           className="h-3 w-3 rounded-full"
-          style={{
-            backgroundColor: hq.accent,
-            boxShadow: `0 0 12px ${hq.accent}`,
-          }}
+          style={{ backgroundColor: hq.accent }}
         />
       </div>
       <div className="mono-ui mt-3 text-xs text-slate-300">{hq.ip}</div>
@@ -170,7 +166,7 @@ export default function AdminControlCenter({
 }: AdminControlCenterProps) {
   if (isLoading && !adminState) {
     return (
-      <main className="h-screen overflow-y-auto px-4 pb-6 pt-[84px]">
+      <main className="h-screen overflow-y-auto px-4 pb-6 pt-[138px] lg:pt-[88px]">
         <div className="mx-auto flex h-full max-w-[1800px] items-center justify-center">
           <div className="panel-shell px-6 py-5 text-sm text-slate-300">
             Loading admin control plane...
@@ -182,7 +178,7 @@ export default function AdminControlCenter({
 
   if (!adminState) {
     return (
-      <main className="h-screen overflow-y-auto px-4 pb-6 pt-[84px]">
+      <main className="h-screen overflow-y-auto px-4 pb-6 pt-[138px] lg:pt-[88px]">
         <div className="mx-auto flex h-full max-w-[1800px] items-center justify-center">
           <div className="panel-shell px-6 py-5 text-sm text-rose-300">
             {error ?? "Admin state is unavailable."}
@@ -201,7 +197,7 @@ export default function AdminControlCenter({
     state.effective_source;
 
   return (
-    <main className="h-screen overflow-y-auto px-4 pb-6 pt-[84px]">
+    <main className="h-screen overflow-y-auto px-4 pb-6 pt-[138px] lg:pt-[88px]">
       <div className="mx-auto flex max-w-[1800px] flex-col gap-4">
         <motion.section
           initial={{ opacity: 0, y: 12 }}
@@ -209,12 +205,12 @@ export default function AdminControlCenter({
           className="panel-shell flex flex-col gap-3 px-5 py-4 lg:flex-row lg:items-center lg:justify-between"
         >
           <div>
-            <h1 className="mono-ui text-base tracking-[0.24em] text-[var(--color-accent)]">
-              ADMIN CONTROL PLANE
+            <h1 className="text-base font-semibold text-slate-100">
+              Admin Control Center
             </h1>
             <p className="mt-1 text-sm text-slate-400">
               Demo mode shapes the narrative. Live mode only controls real-feed pacing, refresh
-              cadence, and where attacks land across the HQ mesh.
+              cadence, and where events land across the HQ mesh.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -236,7 +232,7 @@ export default function AdminControlCenter({
             ) : (
               <button
                 type="button"
-                className="rounded-md border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-sm text-cyan-200 transition hover:bg-cyan-400/16"
+                className="rounded-md border border-sky-400/30 bg-sky-400/10 px-4 py-2 text-sm text-sky-200 transition hover:bg-sky-400/16"
                 onClick={() => void onRefreshLiveFeed()}
               >
                 Refresh Live Feed
@@ -289,13 +285,13 @@ export default function AdminControlCenter({
                 />
               </div>
 
-              <div className="rounded-md border border-white/8 bg-black/16 px-4 py-4 text-sm text-slate-300">
+              <div className="rounded-md border border-white/8 bg-white/[0.025] px-4 py-4 text-sm text-slate-300">
                 {isDemoMode
                   ? "Demo-only controls are unlocked below: simulation profile, threat mix, severity gates, and burst mode. Live-feed controls stay visible in standby, but they do not shape the current stream."
                   : "Live-feed controls are unlocked below: source selection, refresh cadence, manual refresh, and ingestion speed. Demo shaping controls are preserved but locked until you switch back to demo mode."}
               </div>
 
-              <div className="rounded-md border border-white/8 bg-black/16 px-4 py-4">
+              <div className="rounded-md border border-white/8 bg-white/[0.025] px-4 py-4">
                 <div className="mb-3">
                   <div className="text-xs uppercase tracking-[0.22em] text-slate-500">
                     AI Quota Guard
@@ -373,7 +369,7 @@ export default function AdminControlCenter({
                   <div className="grid gap-3 md:grid-cols-2">
                     <StatTile
                       label="Burst Control"
-                      value="God Mode Ready"
+                      value="Burst Ready"
                       hint="Generates a short high-pressure synthetic burst without changing live-feed state."
                     />
                     <StatTile
@@ -388,7 +384,7 @@ export default function AdminControlCenter({
               <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
                 <Panel
                   title="Threat Shaping"
-                  description="Use these controls to bias the terminal, globe, and analytics toward the attack story you want to show."
+                  description="Use these controls to shape the event feed, map, and analytics for the scenario you want to show."
                 >
                   <div>
                     <div className="mb-3 text-xs uppercase tracking-[0.2em] text-slate-500">
@@ -433,7 +429,7 @@ export default function AdminControlCenter({
                             })
                           }
                           accent={
-                            SEVERITY_COLORS[severity as keyof typeof SEVERITY_COLORS] ?? "#00ff88"
+                            SEVERITY_COLORS[severity as keyof typeof SEVERITY_COLORS] ?? "#7dd3fc"
                           }
                         />
                       ))}
@@ -528,7 +524,7 @@ export default function AdminControlCenter({
                   <div className="flex flex-wrap gap-3">
                     <button
                       type="button"
-                      className="rounded-md border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-sm text-cyan-200 transition hover:bg-cyan-400/16"
+                className="rounded-md border border-sky-400/30 bg-sky-400/10 px-4 py-2 text-sm text-sky-200 transition hover:bg-sky-400/16"
                       onClick={() => void onRefreshLiveFeed()}
                     >
                       Refresh Live Feed
@@ -548,7 +544,7 @@ export default function AdminControlCenter({
                   <label className="flex flex-col gap-3">
                     <span className="text-sm text-slate-300">
                       Feed refresh cadence:{" "}
-                      <span className="mono-ui text-cyan-200">
+                      <span className="mono-ui text-sky-200">
                         {state.live_feed_refresh_minutes.toFixed(0)} min
                       </span>
                     </span>
@@ -627,7 +623,7 @@ export default function AdminControlCenter({
                     />
                   </label>
 
-                  <div className="rounded-md border border-cyan-400/12 bg-cyan-400/5 px-4 py-4 text-sm text-cyan-100">
+                  <div className="rounded-md border border-sky-400/12 bg-sky-400/5 px-4 py-4 text-sm text-sky-100">
                     Live mode no longer applies simulation profile, threat mix shaping, or
                     severity gating. The feed is emitted as collected and only paced at the
                     WebSocket boundary.
@@ -642,7 +638,7 @@ export default function AdminControlCenter({
                   title="Demo Controls Locked"
                   description="These settings are preserved for the next time you return to demo mode, but they do not affect the live feed."
                 >
-                  <div className="rounded-md border border-white/8 bg-black/16 px-4 py-4">
+                  <div className="rounded-md border border-white/8 bg-white/[0.025] px-4 py-4">
                     <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
                       Stored Demo Profile
                     </div>
@@ -674,7 +670,7 @@ export default function AdminControlCenter({
                         active={state.enabled_severities.includes(severity)}
                         onClick={() => undefined}
                         accent={
-                          SEVERITY_COLORS[severity as keyof typeof SEVERITY_COLORS] ?? "#00ff88"
+                          SEVERITY_COLORS[severity as keyof typeof SEVERITY_COLORS] ?? "#7dd3fc"
                         }
                         disabled
                       />

@@ -32,29 +32,16 @@ function MetricPill({
   decimals?: number;
 }) {
   return (
-    <div className="panel-shell flex min-w-[132px] flex-col gap-1 px-4 py-2">
-      <span className="text-[10px] uppercase tracking-[0.28em] text-slate-400">
-        {label}
-      </span>
-      <span className="flex items-baseline gap-1 text-lg font-semibold text-slate-100">
+    <div className="hidden min-w-[104px] flex-col gap-0.5 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm xl:flex">
+      <span className="text-[11px] font-medium text-slate-500">{label}</span>
+      <span className="flex items-baseline gap-1 text-base font-semibold text-slate-950">
         <AnimatedCounter
           value={value}
           duration={COUNTER_ANIMATION_DURATION_MS}
           decimals={decimals}
         />
-        <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
-          {suffix}
-        </span>
+        <span className="text-xs font-medium text-slate-500">{suffix}</span>
       </span>
-    </div>
-  );
-}
-
-function TextPill({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="panel-shell flex min-w-[140px] flex-col gap-1 px-4 py-2">
-      <span className="text-[10px] uppercase tracking-[0.28em] text-slate-400">{label}</span>
-      <span className="mono-ui truncate text-sm text-slate-100">{value}</span>
     </div>
   );
 }
@@ -71,10 +58,10 @@ function NavButton({
   return (
     <button
       type="button"
-      className={`rounded-md border px-3 py-2 text-xs uppercase tracking-[0.24em] transition ${
+      className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
         active
-          ? "border-emerald-400/35 bg-emerald-400/10 text-emerald-200"
-          : "border-white/10 bg-white/4 text-slate-400 hover:border-white/20 hover:text-slate-200"
+          ? "bg-slate-950 text-white shadow-sm"
+          : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
       }`}
       onClick={onClick}
     >
@@ -97,6 +84,14 @@ export default function TopNavBar({
       (adminState?.state.effective_source ?? "mock") as keyof typeof DATA_SOURCE_LABELS
     ] ?? adminState?.state.effective_source ?? "DEMO SIMULATION";
   const activeHqCount = adminState?.state.active_hq_ids.length ?? 0;
+  const navItems = [
+    ["Overview", ROUTES.dashboard],
+    ["Event Feed", ROUTES.feed],
+    ["Geography", ROUTES.geography],
+    ["Analytics", ROUTES.analytics],
+    ["Investigations", ROUTES.investigations],
+    ["Admin", ROUTES.admin],
+  ] as const;
 
   useEffect(() => {
     if (!flashActive) {
@@ -112,36 +107,39 @@ export default function TopNavBar({
 
   return (
     <motion.header
-      className="fixed inset-x-0 top-0 z-30 border-b bg-[rgba(5,10,18,0.84)] px-4 py-3 backdrop-blur-xl"
+      className="fixed inset-x-0 top-0 z-30 border-b border-slate-200 bg-white/95 px-5 py-3 shadow-sm backdrop-blur"
       animate={{
-        borderColor: flashActive ? "rgba(239,68,68,0.92)" : "rgba(255,255,255,0.08)",
+        borderColor: flashActive ? "rgba(239,68,68,0.38)" : "rgba(226,232,240,1)",
         boxShadow: flashActive
-          ? "0 10px 34px rgba(239,68,68,0.18)"
-          : "0 10px 30px rgba(0,0,0,0.28)",
+          ? "0 10px 28px rgba(239,68,68,0.12)"
+          : "0 1px 0 rgba(15,23,42,0.04)",
       }}
       transition={{ duration: 0.2 }}
     >
       <div className="mx-auto flex max-w-[1800px] items-center justify-between gap-4">
-        <div className="flex min-w-[220px] items-center gap-4">
-          <div className="mono-ui flex items-center gap-2 text-sm tracking-[0.22em] text-slate-200">
-            <span className="text-[var(--color-accent)]">MISP-SOC // LIVE</span>
-            <span className="cursor-blink text-[var(--color-accent)]">_</span>
-          </div>
-          <div className="hidden items-center gap-2 lg:flex">
-            <NavButton
-              label="Dashboard"
-              active={!currentPath.startsWith(ROUTES.admin)}
-              onClick={() => onNavigate(ROUTES.dashboard)}
-            />
-            <NavButton
-              label="Admin"
-              active={currentPath.startsWith(ROUTES.admin)}
-              onClick={() => onNavigate(ROUTES.admin)}
-            />
+        <div className="flex min-w-[260px] items-center gap-4">
+          <div className="flex flex-col">
+            <span className="text-base font-semibold text-slate-950">MISP SOC Dashboard</span>
+            <span className="text-xs text-slate-500">{dataSourceLabel}</span>
           </div>
         </div>
 
-        <div className="hidden items-center gap-3 xl:flex">
+        <nav className="hidden items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 lg:flex">
+          {navItems.map(([label, path]) => (
+            <NavButton
+              key={path}
+              label={label}
+              active={
+                path === ROUTES.dashboard
+                  ? currentPath === ROUTES.dashboard
+                  : currentPath.startsWith(path)
+              }
+              onClick={() => onNavigate(path)}
+            />
+          ))}
+        </nav>
+
+        <div className="hidden items-center gap-2 2xl:flex">
           <MetricPill
             label="Ingestion Rate"
             value={metrics.ingestionRateValue}
@@ -158,30 +156,19 @@ export default function TopNavBar({
             suffix="online"
             decimals={0}
           />
-          <MetricPill
-            label="HQ Coverage"
-            value={activeHqCount}
-            suffix="nodes"
-            decimals={0}
-          />
-          <TextPill
-            label="Mode"
-            value={dataSourceLabel}
-          />
+          <MetricPill label="HQ Coverage" value={activeHqCount} suffix="nodes" decimals={0} />
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="panel-shell flex items-center gap-3 px-3 py-2">
+          <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
             <span
               className={`status-pulse h-2.5 w-2.5 rounded-full ${
                 isConnected ? "bg-emerald-400" : "bg-rose-500"
               }`}
             />
             <div className="flex flex-col leading-tight">
-              <span className="text-[10px] uppercase tracking-[0.24em] text-slate-500">
-                WebSocket
-              </span>
-              <span className="mono-ui text-xs text-slate-200">
+              <span className="text-[11px] font-medium text-slate-500">Stream</span>
+              <span className="text-xs font-semibold text-slate-950">
                 {isConnected
                   ? CONNECTION_STATUS_TEXT.connected
                   : CONNECTION_STATUS_TEXT.disconnected}
@@ -194,6 +181,18 @@ export default function TopNavBar({
           />
         </div>
       </div>
+      <nav className="mt-3 flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-1 lg:hidden">
+        {navItems.map(([label, path]) => (
+          <NavButton
+            key={path}
+            label={label}
+            active={
+              path === ROUTES.dashboard ? currentPath === ROUTES.dashboard : currentPath.startsWith(path)
+            }
+            onClick={() => onNavigate(path)}
+          />
+        ))}
+      </nav>
     </motion.header>
   );
 }

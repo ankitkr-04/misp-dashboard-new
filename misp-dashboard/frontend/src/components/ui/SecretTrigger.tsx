@@ -36,29 +36,13 @@ export default function SecretTrigger({
   return (
     <motion.button
       type="button"
-      className="group panel-shell flex h-10 w-10 items-center justify-center p-0 opacity-30 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-20"
+      className="rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-semibold text-slate-300 transition hover:border-white/20 hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-45"
       whileTap={{ scale: 0.95 }}
       disabled={disabled}
       onClick={activateGodMode}
       aria-label={disabled ? "Burst mode unavailable in live feed mode" : "Activate burst mode"}
     >
-      <div className="flex items-center gap-1">
-        {[0, 1, 2].map((index) => (
-          <span
-            key={index}
-            className={`h-1.5 w-1.5 rounded-full ${
-              disabled ? "bg-slate-600" : isPending ? "bg-rose-400" : "bg-emerald-300"
-            }`}
-            style={{
-              boxShadow: disabled
-                ? "0 0 6px rgba(100, 116, 139, 0.25)"
-                : isPending
-                ? "0 0 10px rgba(251, 113, 133, 0.55)"
-                : "0 0 10px rgba(0, 255, 136, 0.4)",
-            }}
-          />
-        ))}
-      </div>
+      {isPending ? "Starting..." : "Demo burst"}
     </motion.button>
   );
 }

@@ -97,8 +97,8 @@ function ModeButton({
       type="button"
       className={`rounded-md border px-3 py-1.5 text-[11px] uppercase tracking-[0.22em] transition ${
         active
-          ? "border-cyan-400/35 bg-cyan-400/10 text-cyan-100"
-          : "border-white/10 bg-white/4 text-slate-500 hover:border-white/20 hover:text-slate-200"
+          ? "border-sky-300/35 bg-sky-400/10 text-sky-100"
+          : "border-white/10 bg-white/[0.03] text-slate-500 hover:border-white/20 hover:text-slate-200"
       }`}
       onClick={onClick}
     >
@@ -126,21 +126,13 @@ function PreviewOverlay({
 
   return (
     <div className="pointer-events-none absolute bottom-4 left-4 right-4 z-30">
-      <div className="rounded-md border border-white/10 bg-[rgba(6,12,22,0.9)] px-4 py-3 shadow-[0_20px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+      <div className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-lg">
         <div className="mb-2 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span
-              className="h-2.5 w-2.5 rounded-full"
-              style={{
-                backgroundColor: severityColor,
-                boxShadow: `0 0 12px ${severityColor}`,
-              }}
-            />
-            <span className="mono-ui text-xs tracking-[0.2em] text-slate-200">
-              ROUTE PREVIEW
-            </span>
+            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: severityColor }} />
+            <span className="text-xs font-semibold text-slate-200">Route Preview</span>
           </div>
-          <span className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+          <span className="text-[11px] text-slate-500">
             {isPinned ? "Selected Route" : "Hover Route"}
           </span>
         </div>
@@ -191,7 +183,7 @@ export default function ThreatGlobe3D({
   const latestThreatIdsRef = useRef<Set<string>>(new Set());
   const [dimensions, setDimensions] = useState(GLOBE_RESIZE_FALLBACK);
   const [arcThreats, setArcThreats] = useState<ArcThreat[]>([]);
-  const [viewMode, setViewMode] = useState<GlobeViewMode>("globe");
+  const [viewMode, setViewMode] = useState<GlobeViewMode>("map");
   const [hoveredThreatId, setHoveredThreatId] = useState<string | null>(null);
   const [selectedThreatId, setSelectedThreatId] = useState<string | null>(null);
 
@@ -329,11 +321,9 @@ export default function ThreatGlobe3D({
     <section className="panel-shell relative flex h-full min-h-0 flex-col overflow-hidden">
       <div className="flex items-center justify-between border-b border-white/8 px-4 py-3">
         <div>
-          <h2 className="mono-ui text-sm tracking-[0.22em] text-[var(--color-accent)]">
-            GLOBAL ATTACK SURFACE
-          </h2>
+          <h2 className="text-sm font-semibold text-slate-100">Threat Geography</h2>
           <p className="text-xs text-slate-400">
-            Hover a route for context, click to investigate, or switch to 2D tactical view
+            Source routes and affected command centers
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -345,8 +335,8 @@ export default function ThreatGlobe3D({
               onClick={() => setViewMode(mode as GlobeViewMode)}
             />
           ))}
-          <div className="orbital-pulse rounded-md border border-emerald-400/20 px-2 py-1 text-[10px] uppercase tracking-[0.24em] text-emerald-300">
-            {arcs.length} active arcs
+          <div className="rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-xs text-slate-300">
+            {arcs.length} active routes
           </div>
         </div>
       </div>
@@ -355,7 +345,7 @@ export default function ThreatGlobe3D({
         ref={containerRef}
         className="relative min-h-0 flex-1"
       >
-        <div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(circle_at_center,rgba(0,255,136,0.08),transparent_44%)]" />
+        <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(15,23,42,0.02),transparent_38%)]" />
 
         {viewMode === "globe" ? (
           <Globe
@@ -410,8 +400,8 @@ export default function ThreatGlobe3D({
             labelDotRadius={GLOBE_LABEL_DOT_RADIUS}
           />
         ) : (
-          <div className="relative h-full w-full overflow-hidden bg-[linear-gradient(180deg,#01040c_0%,#04101a_38%,#071827_100%)]">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(56,189,248,0.08),transparent_44%)]" />
+          <div className="relative h-full w-full overflow-hidden bg-slate-50">
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.75),transparent_48%)]" />
             <ComposableMap
               width={dimensions.width}
               height={dimensions.height}
@@ -421,8 +411,8 @@ export default function ThreatGlobe3D({
             >
               <Sphere
                 id="threat-map-sphere"
-                fill="rgba(3,9,18,0.96)"
-                stroke="rgba(255,255,255,0.04)"
+                fill="#f8fafc"
+                stroke="rgba(15,23,42,0.08)"
                 strokeWidth={0.6}
               />
               <Graticule stroke={MAP_GRATICULE_STROKE} />

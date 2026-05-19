@@ -22,12 +22,14 @@
     />
     <style>
       :root {
-        color-scheme: dark;
-        --color-bg: #0a0f1a;
-        --color-panel: rgba(255, 255, 255, 0.03);
-        --color-border: rgba(255, 255, 255, 0.08);
-        --color-accent: #00ff88;
+        color-scheme: light;
+        --color-bg: #f6f8fb;
+        --color-panel: #ffffff;
+        --color-panel-subtle: #f8fafc;
+        --color-border: rgba(15, 23, 42, 0.1);
+        --color-accent: #2563eb;
         --color-danger: #ef4444;
+        --color-muted: #64748b;
       }
 
       * {
@@ -40,11 +42,8 @@
         margin: 0;
         min-height: 100%;
         width: 100%;
-        background:
-          radial-gradient(circle at top, rgba(0, 255, 136, 0.08), transparent 30%),
-          radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.08), transparent 35%),
-          var(--color-bg);
-        color: #e5f4ee;
+        background: var(--color-bg);
+        color: #0f172a;
       }
 
       body {
@@ -59,7 +58,7 @@
       }
 
       ::selection {
-        background: rgba(0, 255, 136, 0.22);
+        background: rgba(37, 99, 235, 0.18);
       }
 
       ::-webkit-scrollbar {
@@ -68,11 +67,11 @@
       }
 
       ::-webkit-scrollbar-track {
-        background: rgba(255, 255, 255, 0.04);
+        background: rgba(15, 23, 42, 0.06);
       }
 
       ::-webkit-scrollbar-thumb {
-        background: rgba(0, 255, 136, 0.28);
+        background: rgba(100, 116, 139, 0.38);
         border-radius: 999px;
       }
 
@@ -84,8 +83,7 @@
         background: var(--color-panel);
         border: 1px solid var(--color-border);
         border-radius: 8px;
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 0 24px rgba(0, 0, 0, 0.22);
-        backdrop-filter: blur(14px);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
       }
 
       .cursor-blink {
@@ -93,7 +91,7 @@
       }
 
       .status-pulse {
-        animation: statusPulse 1.8s ease-in-out infinite;
+        box-shadow: none;
       }
 
       .fade-in-highlight {
@@ -101,7 +99,41 @@
       }
 
       .orbital-pulse {
-        animation: orbitalPulse 3.8s ease-in-out infinite;
+        animation: none;
+      }
+
+      .app-light {
+        color: #0f172a;
+      }
+
+      .app-light [class*="text-slate-100"],
+      .app-light [class*="text-slate-50"],
+      .app-light [class*="text-slate-200"] {
+        color: #0f172a !important;
+      }
+
+      .app-light [class*="text-slate-300"],
+      .app-light [class*="text-slate-400"] {
+        color: #475569 !important;
+      }
+
+      .app-light [class*="text-slate-500"] {
+        color: #64748b !important;
+      }
+
+      .app-light [class*="border-white/"],
+      .app-light [class*="border-white\\\/"] {
+        border-color: rgba(15, 23, 42, 0.1) !important;
+      }
+
+      .app-light [class*="bg-white/"],
+      .app-light [class*="bg-white\\\/"] {
+        background-color: #f8fafc !important;
+      }
+
+      .app-light .panel-shell {
+        background: #ffffff;
+        border-color: rgba(15, 23, 42, 0.1);
       }
 
       @keyframes blink {

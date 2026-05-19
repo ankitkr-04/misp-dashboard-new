@@ -16,7 +16,7 @@ const config: Config = {
         sans: ["system-ui", "sans-serif"],
       },
       boxShadow: {
-        panel: "0 0 28px rgba(0, 255, 136, 0.08)",
+        panel: "0 14px 34px rgba(0, 0, 0, 0.18)",
       },
     },
   },
