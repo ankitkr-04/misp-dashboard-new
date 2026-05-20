@@ -14,46 +14,36 @@ export default function App() {
     useAdminState();
   const [selectedThreat, setSelectedThreat] = useState<ThreatPayload | null>(null);
   const [selectedThreatHistoryType, setSelectedThreatHistoryType] = useState<string | null>(null);
-  const [mitigatedIds, setMitigatedIds] = useState<Set<string>>(new Set());
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
   useEffect(() => {
-    const onPopState = () => {
-      setCurrentPath(window.location.pathname);
-    };
-
+    const onPopState = () => setCurrentPath(window.location.pathname);
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
   const handleNavigate = (path: string) => {
-    if (window.location.pathname === path) {
-      return;
-    }
-
+    if (window.location.pathname === path) return;
     window.history.pushState({}, "", path);
     setCurrentPath(path);
   };
 
   const activeHqs = useMemo(() => {
-    if (!adminState) {
-      return [];
-    }
-
-    return adminState.catalog.hqs.filter((hq) => adminState.state.active_hq_ids.includes(hq.id));
+    if (!adminState) return [];
+    return adminState.catalog.hqs.filter((hq) =>
+      adminState.state.active_hq_ids.includes(hq.id),
+    );
   }, [adminState]);
+
   const aiEnabled = adminState?.state.ai_features_enabled ?? true;
   const investigationThreatId = currentPath.startsWith(`${ROUTES.investigations}/`)
     ? decodeURIComponent(currentPath.slice(`${ROUTES.investigations}/`.length))
     : null;
 
   const relatedThreatHistory = useMemo(() => {
-    if (!selectedThreatHistoryType) {
-      return [];
-    }
-
+    if (!selectedThreatHistoryType) return [];
     return threats
-      .filter((threat) => threat.type === selectedThreatHistoryType)
+      .filter((t) => t.type === selectedThreatHistoryType)
       .slice()
       .reverse()
       .slice(0, THREAT_HISTORY_LIMIT);
@@ -92,16 +82,8 @@ export default function App() {
     setSelectedThreat(null);
   };
 
-  const handleMitigate = (id: string) => {
-    setMitigatedIds((previous) => {
-      const next = new Set(previous);
-      next.add(id);
-      return next;
-    });
-  };
-
   return (
-    <div className="app-light h-screen w-full overflow-hidden bg-dashboard-bg text-slate-950">
+    <div className="h-screen w-full overflow-hidden bg-slate-50 text-slate-950">
       <TopNavBar
         telemetry={telemetry}
         isConnected={isConnected}
@@ -135,15 +117,15 @@ export default function App() {
             currentPath.startsWith(ROUTES.feed)
               ? "feed"
               : currentPath.startsWith(ROUTES.geography)
-              ? "geography"
-              : currentPath.startsWith(ROUTES.analytics)
-              ? "analytics"
-              : "overview"
+                ? "geography"
+                : currentPath.startsWith(ROUTES.analytics)
+                  ? "analytics"
+                  : "overview"
           }
           selectedThreat={selectedThreat}
           selectedThreatHistoryType={selectedThreatHistoryType}
           relatedThreatHistory={relatedThreatHistory}
-          mitigatedIds={mitigatedIds}
+          mitigatedIds={new Set<string>()}
           activeHqs={activeHqs}
           onSelectThreat={handleSelectThreat}
           onOpenThreatPage={handleOpenThreatPage}
@@ -151,7 +133,7 @@ export default function App() {
           onSelectThreatFromHistory={handleSelectThreatFromHistory}
           onCloseThreat={handleCloseModal}
           onBackToThreatHistory={handleBackToHistory}
-          onMitigateThreat={handleMitigate}
+          onMitigateThreat={() => undefined}
         />
       )}
     </div>
