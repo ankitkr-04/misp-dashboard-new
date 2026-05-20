@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Globe, { type GlobeMethods } from "react-globe.gl";
+import * as THREE from "three";
 import {
   ComposableMap,
   Geographies,
@@ -13,9 +14,6 @@ import type { HqNode, ThreatPayload } from "../../types/threat";
 import {
   ARC_DECAY_MS,
   ARC_STROKE_BY_SEVERITY,
-  GLOBE_ARC_ANIMATE_TIME_MS,
-  GLOBE_ARC_DASH_GAP,
-  GLOBE_ARC_DASH_LENGTH,
   GLOBE_AUTO_ROTATE_SPEED,
   GLOBE_DECAY_SWEEP_MS,
   GLOBE_LABEL_ALTITUDE,
@@ -40,6 +38,8 @@ import {
   SEVERITY_COLORS,
 } from "../../utils/constants";
 
+// ─── Types ──────────────────────────────────────────────────────────────────
+
 type ThreatGlobe3DProps = {
   threats: ThreatPayload[];
   activeHqs: HqNode[];
@@ -50,182 +50,94 @@ type ThreatGlobe3DProps = {
 type ArcThreat = { threat: ThreatPayload; insertedAt: number };
 type GlobeViewMode = keyof typeof GLOBE_VIEW_MODE_LABELS;
 
+// Arc: start = attacker source, end = HQ target (resolved from activeHqs)
 type ArcVisual = {
   id: string;
-  startLat: number;
-  startLng: number;
-  endLat: number;
-  endLng: number;
-  color: string;
-  stroke: number;
+  startLat: number; startLng: number;
+  endLat: number; endLng: number;
+  color: string; stroke: number;
   threat: ThreatPayload;
 };
 
-type PointVisual = {
-  id: string;
-  lat: number;
-  lng: number;
-  color: string;
+// Source point (attacker city)
+type SrcPoint = {
+  id: string; lat: number; lng: number;
+  color: string; city: string; country: string;
   threat: ThreatPayload;
+};
+
+// Destination point (HQ node being attacked)
+type DstPoint = {
+  id: string; lat: number; lng: number;
+  color: string; name: string;
+  hq: HqNode;
 };
 
 type RingVisual = {
-  id: string;
-  lat: number;
-  lng: number;
-  color: string;
-  maxR: number;
-  propagationSpeed: number;
-  repeatPeriod: number;
+  id: string; lat: number; lng: number;
+  color: string; maxR: number; propagationSpeed: number; repeatPeriod: number;
 };
 
-// ─── Severity config ─────────────────────────────────────────────────────────
+// ─── Constants ───────────────────────────────────────────────────────────────
 
-const SEVERITY_RING_CONFIG: Record<string, { maxR: number; speed: number; period: number }> = {
-  Critical: { maxR: 5, speed: 3.5, period: 600 },
-  High: { maxR: 4, speed: 2.5, period: 800 },
-  Medium: { maxR: 3, speed: 1.8, period: 1100 },
-  Low: { maxR: 2, speed: 1.2, period: 1500 },
+const SEVERITY_RING: Record<string, { maxR: number; speed: number; period: number }> = {
+  Critical: { maxR: 4.5, speed: 3.2, period: 550 },
+  High: { maxR: 3.5, speed: 2.2, period: 750 },
+  Medium: { maxR: 2.5, speed: 1.6, period: 1050 },
+  Low: { maxR: 1.8, speed: 1.0, period: 1600 },
 };
 
-// ─── Route preview strip ─────────────────────────────────────────────────────
+const GLOBE_BG = "#f1f5f9";
+const HEX_MARGIN = 0.38;
+const HEX_RES = 3;
+const HEX_COLOR = "#94a3b8";
 
-function RoutePreview({
-  threat,
-  onOpen,
-  dark = false,
-}: {
-  threat: ThreatPayload | null;
-  onOpen: () => void;
-  dark?: boolean;
-}) {
-  if (!threat) return null;
-  const color =
-    SEVERITY_COLORS[threat.severity as keyof typeof SEVERITY_COLORS] ?? SEVERITY_COLORS.Low;
+// HQ target marker: cross/diamond shape size
+const HQ_GLOBE_RADIUS = 0.45; // larger than source points
+const HQ_GLOBE_ALTITUDE = 0.025;
 
-  return (
-    <div className="pointer-events-auto absolute bottom-3 left-3 z-30">
-      <button
-        type="button"
-        onClick={onOpen}
-        className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-left shadow-md backdrop-blur-sm transition hover:shadow-lg ${dark
-          ? "border-slate-600/60 bg-slate-900/80 hover:border-slate-500"
-          : "border-slate-200 bg-white/95 hover:border-blue-300"
-          }`}
-      >
-        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-        <span className={`text-xs font-semibold ${dark ? "text-slate-200" : "text-slate-700"}`}>
-          {threat.severity}
-        </span>
-        <span className={dark ? "text-slate-600" : "text-slate-300"}>·</span>
-        <span className={`text-xs ${dark ? "text-slate-300" : "text-slate-600"}`}>{threat.type}</span>
-        <span className={dark ? "text-slate-600" : "text-slate-300"}>·</span>
-        <span className={`text-xs ${dark ? "text-slate-400" : "text-slate-500"}`}>{threat.malware_family}</span>
-        <span className={dark ? "text-slate-600" : "text-slate-300"}>·</span>
-        <span className={`max-w-[180px] truncate text-xs ${dark ? "text-slate-400" : "text-slate-500"}`}>
-          {threat.src_geo.city} → {threat.target_hq_name}
-        </span>
-        <span className="ml-1 shrink-0 text-xs font-medium text-blue-400">Investigate →</span>
-      </button>
-    </div>
-  );
+function arcAlt(sLat: number, sLng: number, eLat: number, eLng: number): number {
+  const d = Math.sqrt((eLat - sLat) ** 2 + (eLng - sLng) ** 2);
+  return Math.min(0.6, Math.max(0.12, d * 0.0027));
 }
 
-// ─── Stats overlay for globe mode ────────────────────────────────────────────
-
-function GlobeStatsOverlay({
-  arcCount,
-  activeHqCount,
-  criticalCount,
-}: {
-  arcCount: number;
-  activeHqCount: number;
-  criticalCount: number;
-}) {
-  return (
-    <div className="pointer-events-none absolute left-3 top-3 z-30 flex flex-col gap-1.5">
-      <div className="flex items-center gap-2 rounded-md border border-slate-700/70 bg-slate-900/75 px-2.5 py-1.5 backdrop-blur-sm">
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-        <span className="text-xs font-medium tabular-nums text-slate-300">
-          {arcCount} active routes
-        </span>
-      </div>
-      <div className="flex items-center gap-2 rounded-md border border-slate-700/70 bg-slate-900/75 px-2.5 py-1.5 backdrop-blur-sm">
-        <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
-        <span className="text-xs font-medium tabular-nums text-slate-300">
-          {activeHqCount} HQ nodes
-        </span>
-      </div>
-      {criticalCount > 0 && (
-        <div className="flex items-center gap-2 rounded-md border border-red-800/70 bg-red-950/75 px-2.5 py-1.5 backdrop-blur-sm">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-400" />
-          <span className="text-xs font-semibold tabular-nums text-red-300">
-            {criticalCount} critical
-          </span>
-        </div>
-      )}
-    </div>
-  );
+function makeGlobeMaterial() {
+  const mat = new THREE.MeshPhongMaterial();
+  mat.color = new THREE.Color("#dde3ed");
+  mat.emissive = new THREE.Color("#8fafd4");
+  mat.emissiveIntensity = 0.06;
+  mat.shininess = 6;
+  mat.transparent = false;
+  return mat;
 }
 
-// ─── Severity legend ──────────────────────────────────────────────────────────
+// ─── Sub-components ──────────────────────────────────────────────────────────
 
-function SeverityLegend({ dark = false }: { dark?: boolean }) {
-  const items = [
-    { label: "Critical", color: SEVERITY_COLORS.Critical },
-    { label: "High", color: SEVERITY_COLORS.High },
-    { label: "Medium", color: SEVERITY_COLORS.Medium },
-    { label: "Low", color: SEVERITY_COLORS.Low },
-  ];
+function ModeButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
-    <div
-      className={`pointer-events-none absolute bottom-3 right-3 z-30 flex flex-col gap-1 rounded-lg border px-2.5 py-2 backdrop-blur-sm ${dark
-        ? "border-slate-700/60 bg-slate-900/75"
-        : "border-slate-200 bg-white/90"
+    <button
+      type="button"
+      onClick={onClick}
+      className={`cursor-pointer rounded-md border px-3 py-1.5 text-xs font-medium transition ${active
+        ? "border-blue-200 bg-blue-50 text-blue-700"
+        : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
         }`}
     >
-      {items.map(({ label, color }) => (
-        <div key={label} className="flex items-center gap-1.5">
-          <span className="h-1.5 w-4 rounded-full" style={{ backgroundColor: color }} />
-          <span className={`text-[10px] font-medium ${dark ? "text-slate-400" : "text-slate-500"}`}>
-            {label}
-          </span>
-        </div>
-      ))}
-    </div>
+      {label}
+    </button>
   );
 }
 
-// ─── Zoom controls ─────────────────────────────────────────────────────────────
-
-function ZoomControls({
-  onZoomIn,
-  onZoomOut,
-  onReset,
-  dark = false,
-}: {
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onReset: () => void;
-  dark?: boolean;
-}) {
-  const base = dark
-    ? "border-slate-600/60 bg-slate-800/70 text-slate-300 hover:bg-slate-700/80 hover:text-white backdrop-blur-sm"
-    : "border-slate-200 bg-white text-slate-600 shadow-sm hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600";
-
+function ZoomControls({ onZoomIn, onZoomOut, onReset }: { onZoomIn: () => void; onZoomOut: () => void; onReset: () => void }) {
   return (
     <div className="absolute right-3 top-3 z-30 flex flex-col gap-1">
-      {[
-        { label: "+", title: "Zoom in", fn: onZoomIn },
-        { label: "−", title: "Zoom out", fn: onZoomOut },
-        { label: "⊙", title: "Reset view", fn: onReset },
-      ].map(({ label, title, fn }) => (
+      {([["+", "Zoom in", onZoomIn], ["−", "Zoom out", onZoomOut], ["⊙", "Reset view", onReset]] as const).map(([label, title, fn]) => (
         <button
           key={label}
           type="button"
           title={title}
           onClick={fn}
-          className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border text-sm font-medium transition ${base}`}
+          className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-slate-200 bg-white text-sm font-medium text-slate-600 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
         >
           {label}
         </button>
@@ -234,43 +146,75 @@ function ZoomControls({
   );
 }
 
-// ─── Mode button ───────────────────────────────────────────────────────────────
-
-function ModeButton({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
+function SeverityLegend() {
   return (
-    <button
-      type="button"
-      className={`cursor-pointer rounded-md border px-3 py-1.5 text-xs font-medium transition ${active
-        ? "border-blue-200 bg-blue-50 text-blue-700"
-        : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
-        }`}
-      onClick={onClick}
-    >
-      {label}
-    </button>
+    <div className="pointer-events-none absolute bottom-3 right-3 z-30 flex flex-col gap-1 rounded-lg border border-slate-200 bg-white/90 px-2.5 py-2 shadow-sm backdrop-blur-sm">
+      {(["Critical", "High", "Medium", "Low"] as const).map((sev) => (
+        <div key={sev} className="flex items-center gap-1.5">
+          <span className="h-1.5 w-4 rounded-full" style={{ backgroundColor: SEVERITY_COLORS[sev] }} />
+          <span className="text-[10px] font-medium text-slate-500">{sev}</span>
+        </div>
+      ))}
+      <div className="mt-1 border-t border-slate-100 pt-1 flex flex-col gap-1">
+        <div className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full border border-slate-400 bg-white" />
+          <span className="text-[10px] text-slate-400">Source city</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-sm bg-slate-500" style={{ transform: "rotate(45deg)", display: "inline-block" }} />
+          <span className="text-[10px] text-slate-400">HQ target</span>
+        </div>
+      </div>
+    </div>
   );
 }
 
-// ─── Globe altitude tracker (per-arc) ─────────────────────────────────────────
-
-function getArcAltitude(startLat: number, startLng: number, endLat: number, endLng: number): number {
-  // Great-circle distance in degrees → scale arc height naturally
-  const dlat = Math.abs(endLat - startLat);
-  const dlng = Math.abs(endLng - startLng);
-  const dist = Math.sqrt(dlat * dlat + dlng * dlng);
-  // Clamp between 0.15 and 0.55
-  return Math.min(0.55, Math.max(0.15, dist * 0.0028));
+function GlobeOverlay({ arcCount, hqCount, criticalCount }: { arcCount: number; hqCount: number; criticalCount: number }) {
+  return (
+    <div className="pointer-events-none absolute left-3 top-3 z-30 flex flex-col gap-1.5">
+      <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-white/85 px-2.5 py-1.5 shadow-sm backdrop-blur-sm">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+        <span className="text-xs font-medium tabular-nums text-slate-600">{arcCount} active routes</span>
+      </div>
+      <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-white/85 px-2.5 py-1.5 shadow-sm backdrop-blur-sm">
+        <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+        <span className="text-xs font-medium tabular-nums text-slate-600">{hqCount} HQ nodes online</span>
+      </div>
+      {criticalCount > 0 && (
+        <div className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50/90 px-2.5 py-1.5 shadow-sm backdrop-blur-sm">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
+          <span className="text-xs font-semibold tabular-nums text-red-600">{criticalCount} critical</span>
+        </div>
+      )}
+    </div>
+  );
 }
 
-// ─── Main component ────────────────────────────────────────────────────────────
+function RoutePreview({ threat, onOpen }: { threat: ThreatPayload | null; onOpen: () => void }) {
+  if (!threat) return null;
+  const color = SEVERITY_COLORS[threat.severity as keyof typeof SEVERITY_COLORS] ?? SEVERITY_COLORS.Low;
+  return (
+    <div className="pointer-events-auto absolute bottom-3 left-3 z-30">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-left shadow-md backdrop-blur-sm transition hover:border-blue-300 hover:shadow-lg"
+      >
+        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+        <span className="text-xs font-semibold text-slate-700">{threat.severity}</span>
+        <span className="text-slate-300">·</span>
+        <span className="text-xs text-slate-600">{threat.type}</span>
+        <span className="text-slate-300">·</span>
+        <span className="text-xs text-slate-500">{threat.src_geo.city}, {threat.src_geo.country}</span>
+        <span className="text-slate-300">→</span>
+        <span className="text-xs font-medium text-slate-600">{threat.target_hq_name}</span>
+        <span className="ml-1 shrink-0 text-xs font-medium text-blue-600">Investigate →</span>
+      </button>
+    </div>
+  );
+}
+
+// ─── Main component ──────────────────────────────────────────────────────────
 
 export default function ThreatGlobe3D({
   threats,
@@ -281,16 +225,9 @@ export default function ThreatGlobe3D({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
-  const processedIdsRef = useRef<Set<string>>(new Set());
-  const latestIdsRef = useRef<Set<string>>(new Set());
-  const mapDragRef = useRef<{
-    active: boolean;
-    sx: number;
-    sy: number;
-    ox: number;
-    oy: number;
-    moved: boolean;
-  }>({ active: false, sx: 0, sy: 0, ox: 0, oy: 0, moved: false });
+  const processedRef = useRef<Set<string>>(new Set());
+  const latestRef = useRef<Set<string>>(new Set());
+  const mapDragRef = useRef({ active: false, sx: 0, sy: 0, ox: 0, oy: 0, moved: false });
 
   const [dimensions, setDimensions] = useState(GLOBE_RESIZE_FALLBACK);
   const [arcThreats, setArcThreats] = useState<ArcThreat[]>([]);
@@ -298,380 +235,392 @@ export default function ThreatGlobe3D({
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mapTransform, setMapTransform] = useState({ scale: 1, x: 0, y: 0 });
-  const [globeAltitude, setGlobeAltitude] = useState(GLOBE_VIEW_ALTITUDE);
+  const [altitude, setAltitude] = useState(GLOBE_VIEW_ALTITUDE);
+  const [hexPolygons, setHexPolygons] = useState<unknown[]>([]);
 
-  // ── Resize observer ───────────────────────────────────────────────────────
+  const globeMaterial = useMemo(() => makeGlobeMaterial(), []);
+
+  // Build HQ lookup: id → HqNode (for resolving exact lat/lon)
+  const hqById = useMemo(
+    () => new Map(activeHqs.map((h) => [h.id, h])),
+    [activeHqs],
+  );
+
+  // ── GeoJSON for hex dots ──────────────────────────────────────────────
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return undefined;
+    fetch("https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson")
+      .then((r) => r.json())
+      .then((gj) => setHexPolygons((gj as { features: unknown[] }).features))
+      .catch(() => { });
+  }, []);
+
+  // ── Resize ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return undefined;
     const ro = new ResizeObserver((entries) => {
       const e = entries[0];
       if (!e) return;
-      setDimensions({
-        width: Math.max(Math.floor(e.contentRect.width), 1),
-        height: Math.max(Math.floor(e.contentRect.height), 1),
-      });
+      setDimensions({ width: Math.max(Math.floor(e.contentRect.width), 1), height: Math.max(Math.floor(e.contentRect.height), 1) });
     });
-    ro.observe(container);
+    ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
-  // ── Non-passive wheel for 2D map zoom ────────────────────────────────────
+  // ── Map wheel (non-passive) ───────────────────────────────────────────
   useEffect(() => {
     const el = mapContainerRef.current;
     if (!el || viewMode !== "map") return undefined;
-    const onWheel = (e: WheelEvent) => {
+    const fn = (e: WheelEvent) => {
       e.preventDefault();
-      setMapTransform((prev) => ({
-        ...prev,
-        scale: Math.max(0.5, Math.min(8, prev.scale * (e.deltaY < 0 ? 1.15 : 0.87))),
-      }));
+      setMapTransform((p) => ({ ...p, scale: Math.max(0.5, Math.min(8, p.scale * (e.deltaY < 0 ? 1.15 : 0.87))) }));
     };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
+    el.addEventListener("wheel", fn, { passive: false });
+    return () => el.removeEventListener("wheel", fn);
   }, [viewMode]);
 
-  // ── Globe init ────────────────────────────────────────────────────────────
+  // ── Globe init ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!globeRef.current || viewMode !== "globe") return;
     globeRef.current.pointOfView({ altitude: GLOBE_VIEW_ALTITUDE }, 0);
-    const controls = globeRef.current.controls();
-    controls.autoRotate = true;
-    controls.autoRotateSpeed = GLOBE_AUTO_ROTATE_SPEED;
-  }, [dimensions.height, dimensions.width, viewMode]);
+    const c = globeRef.current.controls();
+    c.autoRotate = true;
+    c.autoRotateSpeed = GLOBE_AUTO_ROTATE_SPEED;
+  }, [dimensions, viewMode]);
 
-  // ── Arc ingestion ─────────────────────────────────────────────────────────
+  // ── Arc ingestion ─────────────────────────────────────────────────────
   useEffect(() => {
     const next: ArcThreat[] = [];
-    latestIdsRef.current = new Set(threats.map((t) => t.id));
+    latestRef.current = new Set(threats.map((t) => t.id));
     threats.forEach((t) => {
-      if (!processedIdsRef.current.has(t.id)) {
-        processedIdsRef.current.add(t.id);
+      if (!processedRef.current.has(t.id)) {
+        processedRef.current.add(t.id);
         next.push({ threat: t, insertedAt: Date.now() });
       }
     });
-    if (next.length === 0) return;
+    if (!next.length) return;
     setArcThreats((prev) => {
       const merged = [...prev, ...next].slice(-MAX_GLOBE_ARCS);
-      processedIdsRef.current = new Set([
-        ...latestIdsRef.current,
-        ...merged.map((e) => e.threat.id),
-      ]);
+      processedRef.current = new Set([...latestRef.current, ...merged.map((e) => e.threat.id)]);
       return merged;
     });
   }, [threats]);
 
-  // ── Arc decay ─────────────────────────────────────────────────────────────
+  // ── Arc decay ─────────────────────────────────────────────────────────
   useEffect(() => {
     const id = window.setInterval(() => {
       const cutoff = Date.now() - ARC_DECAY_MS;
       setArcThreats((prev) => {
         const next = prev.filter((e) => e.insertedAt >= cutoff);
-        processedIdsRef.current = new Set([
-          ...latestIdsRef.current,
-          ...next.map((e) => e.threat.id),
-        ]);
+        processedRef.current = new Set([...latestRef.current, ...next.map((e) => e.threat.id)]);
         return next;
       });
     }, GLOBE_DECAY_SWEEP_MS);
     return () => window.clearInterval(id);
   }, []);
 
-  // ── Clean stale hover/select ──────────────────────────────────────────────
+  // ── Stale cleanup ─────────────────────────────────────────────────────
   useEffect(() => {
     if (selectedId && !arcThreats.some((e) => e.threat.id === selectedId)) setSelectedId(null);
     if (hoveredId && !arcThreats.some((e) => e.threat.id === hoveredId)) setHoveredId(null);
   }, [arcThreats, hoveredId, selectedId]);
 
-  // ── Map drag ──────────────────────────────────────────────────────────────
-  const handleMapMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      mapDragRef.current = {
-        active: true,
-        sx: e.clientX,
-        sy: e.clientY,
-        ox: mapTransform.x,
-        oy: mapTransform.y,
-        moved: false,
-      };
-    },
-    [mapTransform],
-  );
-
-  const handleMapMouseMove = useCallback((e: React.MouseEvent) => {
+  // ── Map drag ──────────────────────────────────────────────────────────
+  const onMapDown = useCallback((e: React.MouseEvent) => {
+    mapDragRef.current = { active: true, sx: e.clientX, sy: e.clientY, ox: mapTransform.x, oy: mapTransform.y, moved: false };
+  }, [mapTransform]);
+  const onMapMove = useCallback((e: React.MouseEvent) => {
     if (!mapDragRef.current.active) return;
-    const dx = e.clientX - mapDragRef.current.sx;
-    const dy = e.clientY - mapDragRef.current.sy;
+    const dx = e.clientX - mapDragRef.current.sx, dy = e.clientY - mapDragRef.current.sy;
     if (Math.abs(dx) + Math.abs(dy) > 3) mapDragRef.current.moved = true;
-    setMapTransform((prev) => ({
-      ...prev,
-      x: mapDragRef.current.ox + dx,
-      y: mapDragRef.current.oy + dy,
-    }));
+    setMapTransform((p) => ({ ...p, x: mapDragRef.current.ox + dx, y: mapDragRef.current.oy + dy }));
   }, []);
+  const onMapUp = useCallback(() => { mapDragRef.current.active = false; }, []);
+  const resetMap = useCallback(() => setMapTransform({ scale: 1, x: 0, y: 0 }), []);
+  const selectThreat = useCallback((t: ThreatPayload) => { setSelectedId(t.id); onSelectThreat?.(t); }, [onSelectThreat]);
 
-  const handleMapMouseUp = useCallback(() => {
-    mapDragRef.current.active = false;
-  }, []);
+  // ── Globe zoom ────────────────────────────────────────────────────────
+  const zoomIn = useCallback(() => { const n = Math.max(0.8, altitude - 0.45); setAltitude(n); globeRef.current?.pointOfView({ altitude: n }, 400); }, [altitude]);
+  const zoomOut = useCallback(() => { const n = Math.min(6, altitude + 0.45); setAltitude(n); globeRef.current?.pointOfView({ altitude: n }, 400); }, [altitude]);
+  const zoomReset = useCallback(() => { setAltitude(GLOBE_VIEW_ALTITUDE); globeRef.current?.pointOfView({ altitude: GLOBE_VIEW_ALTITUDE }, 700); }, []);
 
-  const resetMapTransform = useCallback(() => setMapTransform({ scale: 1, x: 0, y: 0 }), []);
+  // ── Visual data ───────────────────────────────────────────────────────
 
-  const handleSelectThreat = useCallback(
-    (threat: ThreatPayload) => {
-      setSelectedId(threat.id);
-      onSelectThreat?.(threat);
-    },
-    [onSelectThreat],
+  // Arcs: end coords resolved from HQ node (authoritative lat/lon), NOT dst_geo
+  const arcs = useMemo<ArcVisual[]>(() =>
+    arcThreats.flatMap(({ threat }) => {
+      const hq = hqById.get(threat.target_hq_id);
+      if (!hq) return []; // skip if HQ not in active list
+      const color = SEVERITY_COLORS[threat.severity as keyof typeof SEVERITY_COLORS] ?? SEVERITY_COLORS.Low;
+      const hi = hoveredId === threat.id || selectedId === threat.id;
+      return [{
+        id: threat.id,
+        startLat: threat.src_geo.lat,
+        startLng: threat.src_geo.lon,
+        // Use exact HQ coordinates — this is the fix
+        endLat: hq.lat,
+        endLng: hq.lon,
+        color: mitigatedIds.has(threat.id) ? MITIGATED_COLOR : color,
+        stroke: (ARC_STROKE_BY_SEVERITY[threat.severity] ?? ARC_STROKE_BY_SEVERITY.Low) * (hi ? 2.8 : 1),
+        threat,
+      }];
+    }),
+    [arcThreats, hoveredId, selectedId, mitigatedIds, hqById],
   );
 
-  // ── Zoom helpers ──────────────────────────────────────────────────────────
-  const handleGlobeZoomIn = useCallback(() => {
-    const next = Math.max(0.8, globeAltitude - 0.5);
-    setGlobeAltitude(next);
-    globeRef.current?.pointOfView({ altitude: next }, 400);
-  }, [globeAltitude]);
+  // Source points: attacker city — shown when arc exists
+  const srcPoints = useMemo<SrcPoint[]>(() =>
+    arcThreats.map(({ threat }) => {
+      const color = SEVERITY_COLORS[threat.severity as keyof typeof SEVERITY_COLORS] ?? SEVERITY_COLORS.Low;
+      return {
+        id: threat.id,
+        lat: threat.src_geo.lat,
+        lng: threat.src_geo.lon,
+        color: mitigatedIds.has(threat.id) ? MITIGATED_COLOR : color,
+        city: threat.src_geo.city,
+        country: threat.src_geo.country,
+        threat,
+      };
+    }),
+    [arcThreats, mitigatedIds],
+  );
 
-  const handleGlobeZoomOut = useCallback(() => {
-    const next = Math.min(6, globeAltitude + 0.5);
-    setGlobeAltitude(next);
-    globeRef.current?.pointOfView({ altitude: next }, 400);
-  }, [globeAltitude]);
+  // Destination points: one entry per active HQ that has ≥1 arc targeting it
+  // Always show all active HQs (they are permanent nodes), but highlight ones under attack
+  const dstPoints = useMemo<DstPoint[]>(() => {
+    // Count arcs per HQ
+    const attackedIds = new Set(arcThreats.map((e) => e.threat.target_hq_id));
+    return activeHqs.map((hq) => {
+      const underAttack = attackedIds.has(hq.id);
+      return {
+        id: `hq-${hq.id}`,
+        lat: hq.lat,
+        lng: hq.lon,
+        // Brighter when under attack, muted when idle
+        color: underAttack ? hq.accent : `${hq.accent}88`,
+        name: hq.name,
+        hq,
+      };
+    });
+  }, [activeHqs, arcThreats]);
 
-  const handleGlobeReset = useCallback(() => {
-    setGlobeAltitude(GLOBE_VIEW_ALTITUDE);
-    globeRef.current?.pointOfView({ altitude: GLOBE_VIEW_ALTITUDE }, 700);
-  }, []);
+  // Rings: pulse at HQ targets that are being hit (severity-scaled)
+  const threatRings = useMemo<RingVisual[]>(() =>
+    arcThreats.flatMap(({ threat }) => {
+      const hq = hqById.get(threat.target_hq_id);
+      if (!hq) return [];
+      const color = SEVERITY_COLORS[threat.severity as keyof typeof SEVERITY_COLORS] ?? SEVERITY_COLORS.Low;
+      const cfg = SEVERITY_RING[threat.severity] ?? SEVERITY_RING.Low;
+      return [{
+        id: `r-${threat.id}`,
+        lat: hq.lat,   // use HQ coords, not dst_geo
+        lng: hq.lon,
+        color: mitigatedIds.has(threat.id) ? MITIGATED_COLOR : color,
+        maxR: cfg.maxR, propagationSpeed: cfg.speed, repeatPeriod: cfg.period,
+      }];
+    }),
+    [arcThreats, mitigatedIds, hqById],
+  );
 
-  // ── Build visual data ──────────────────────────────────────────────────────
-  const arcs: ArcVisual[] = arcThreats.map(({ threat }) => {
-    const color =
-      SEVERITY_COLORS[threat.severity as keyof typeof SEVERITY_COLORS] ?? SEVERITY_COLORS.Low;
-    const highlighted = hoveredId === threat.id || selectedId === threat.id;
-    const baseStroke = ARC_STROKE_BY_SEVERITY[threat.severity] ?? ARC_STROKE_BY_SEVERITY.Low;
-    return {
-      id: threat.id,
-      startLat: threat.src_geo.lat,
-      startLng: threat.src_geo.lon,
-      endLat: threat.dst_geo.lat,
-      endLng: threat.dst_geo.lon,
-      color: mitigatedIds.has(threat.id) ? MITIGATED_COLOR : color,
-      stroke: baseStroke * (highlighted ? 2.5 : 1),
-      threat,
-    };
-  });
+  // Idle HQ rings — slow ambient pulse
+  const hqRings = useMemo<RingVisual[]>(() =>
+    activeHqs.map((hq) => ({
+      id: `hqr-${hq.id}`, lat: hq.lat, lng: hq.lon, color: hq.accent,
+      maxR: 2, propagationSpeed: 0.6, repeatPeriod: 2400,
+    })),
+    [activeHqs],
+  );
 
-  const points: PointVisual[] = arcThreats.map(({ threat }) => {
-    const color =
-      SEVERITY_COLORS[threat.severity as keyof typeof SEVERITY_COLORS] ?? SEVERITY_COLORS.Low;
-    return {
-      id: threat.id,
-      lat: threat.src_geo.lat,
-      lng: threat.src_geo.lon,
-      color: mitigatedIds.has(threat.id) ? MITIGATED_COLOR : color,
-      threat,
-    };
-  });
+  const allRings = useMemo(() => [...threatRings, ...hqRings], [threatRings, hqRings]);
 
-  // Rings pulse on HQ target nodes (destination of arcs)
-  const rings: RingVisual[] = arcThreats.map(({ threat }) => {
-    const color =
-      SEVERITY_COLORS[threat.severity as keyof typeof SEVERITY_COLORS] ?? SEVERITY_COLORS.Low;
-    const cfg = SEVERITY_RING_CONFIG[threat.severity] ?? SEVERITY_RING_CONFIG.Low;
-    return {
-      id: `ring-${threat.id}`,
-      lat: threat.dst_geo.lat,
-      lng: threat.dst_geo.lon,
-      color: mitigatedIds.has(threat.id) ? MITIGATED_COLOR : color,
-      maxR: cfg.maxR,
-      propagationSpeed: cfg.speed,
-      repeatPeriod: cfg.period,
-    };
-  });
+  // Labels: source city name for the most recent arcs + all HQ names
+  // Split into two labelsData arrays so we can style them differently
+  const srcLabels = useMemo(() =>
+    srcPoints.slice(-MAP_LABEL_LIMIT).map((p) => ({
+      id: p.id,
+      lat: p.lat,
+      lng: p.lng,
+      text: `${p.city}`,
+      color: "#475569", // slate-600
+      size: 0.45,
+      dotR: 0.2,
+    })),
+    [srcPoints],
+  );
 
-  // HQ rings — persistent slow pulse on active HQs
-  const hqRings: RingVisual[] = activeHqs.map((hq) => ({
-    id: `hq-${hq.id}`,
-    lat: hq.lat,
-    lng: hq.lon,
-    color: hq.accent,
-    maxR: 3,
-    propagationSpeed: 0.8,
-    repeatPeriod: 2000,
-  }));
+  const hqLabels = useMemo(() =>
+    activeHqs.map((hq) => ({
+      id: hq.id,
+      lat: hq.lat,
+      lng: hq.lon,
+      text: hq.name,
+      color: hq.accent,
+      size: GLOBE_LABEL_SIZE,
+      dotR: GLOBE_LABEL_DOT_RADIUS,
+    })),
+    [activeHqs],
+  );
 
-  const allRings = [...rings, ...hqRings];
+  const allLabels = useMemo(() => [...srcLabels, ...hqLabels], [srcLabels, hqLabels]);
 
-  const latestThreat = arcThreats[arcThreats.length - 1]?.threat ?? null;
+  // Combined points for globe: src (small sphere) + dst HQs (larger sphere at higher altitude)
+  // We use two separate pointsData arrays via a wrapper approach:
+  // Globe only accepts one pointsData, so we merge with a type discriminator
+  type GlobePoint = {
+    _type: "src" | "dst";
+    id: string; lat: number; lng: number; color: string;
+    radius: number; altitude: number;
+    payload: SrcPoint | DstPoint;
+  };
+
+  const allGlobePoints = useMemo<GlobePoint[]>(() => [
+    ...srcPoints.map((p) => ({
+      _type: "src" as const,
+      id: p.id, lat: p.lat, lng: p.lng, color: p.color,
+      radius: GLOBE_POINT_RADIUS,
+      altitude: GLOBE_POINT_ALTITUDE,
+      payload: p,
+    })),
+    ...dstPoints.map((p) => ({
+      _type: "dst" as const,
+      id: p.id, lat: p.lat, lng: p.lng, color: p.color,
+      radius: HQ_GLOBE_RADIUS,
+      altitude: HQ_GLOBE_ALTITUDE,
+      payload: p,
+    })),
+  ], [srcPoints, dstPoints]);
+
+  const recentLbls = srcPoints.slice(-MAP_LABEL_LIMIT);
   const previewThreat =
     arcThreats.find((e) => e.threat.id === hoveredId)?.threat ??
     arcThreats.find((e) => e.threat.id === selectedId)?.threat ??
-    latestThreat;
-  const recentLabels = points.slice(-MAP_LABEL_LIMIT);
-
-  const isGlobeMode = viewMode === "globe";
+    arcThreats[arcThreats.length - 1]?.threat ?? null;
   const criticalCount = arcThreats.filter((e) => e.threat.severity === "Critical").length;
+  const isGlobe = viewMode === "globe";
 
   return (
-    <section
-      className={`relative flex h-full min-h-0 flex-col overflow-hidden rounded-xl border shadow-sm transition-colors ${isGlobeMode ? "border-slate-700 bg-[#060d1a]" : "border-slate-200 bg-white"
-        }`}
-    >
+    <section className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+
       {/* Header */}
-      <div
-        className={`flex shrink-0 items-center justify-between border-b px-4 py-3 ${isGlobeMode ? "border-slate-700/80 bg-[#080f1f]" : "border-slate-200 bg-white"
-          }`}
-      >
+      <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
         <div>
-          <h2
-            className={`text-sm font-semibold ${isGlobeMode ? "text-slate-100" : "text-slate-800"}`}
-          >
-            Threat Geography
-          </h2>
-          <p className={`text-xs ${isGlobeMode ? "text-slate-500" : "text-slate-500"}`}>
-            Source routes and active command-centre targets
-          </p>
+          <h2 className="text-sm font-semibold text-slate-800">Threat Geography</h2>
+          <p className="text-xs text-slate-500">Source routes and active command-centre targets</p>
         </div>
         <div className="flex items-center gap-2">
           {Object.entries(GLOBE_VIEW_MODE_LABELS).map(([mode, label]) => (
-            <ModeButton
-              key={mode}
-              label={label}
-              active={viewMode === mode}
-              onClick={() => setViewMode(mode as GlobeViewMode)}
-            />
+            <ModeButton key={mode} label={label} active={viewMode === mode} onClick={() => setViewMode(mode as GlobeViewMode)} />
           ))}
-          <span
-            className={`rounded-md border px-2 py-1 text-xs font-medium ${isGlobeMode
-              ? "border-slate-600 bg-slate-800 text-slate-300"
-              : "border-slate-200 bg-slate-50 text-slate-600"
-              }`}
-          >
+          <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600">
             {arcs.length} routes
           </span>
         </div>
       </div>
 
-      {/* Map / Globe area */}
+      {/* Canvas */}
       <div ref={containerRef} className="relative min-h-0 flex-1 overflow-hidden">
 
-        {/* ── 3D Globe ───────────────────────────────────────────────────── */}
-        {isGlobeMode ? (
+        {/* ── 3D Globe ──────────────────────────────────────────────────── */}
+        {isGlobe && (
           <>
-            <GlobeStatsOverlay
-              arcCount={arcs.length}
-              activeHqCount={activeHqs.length}
-              criticalCount={criticalCount}
-            />
-            <ZoomControls
-              dark
-              onZoomIn={handleGlobeZoomIn}
-              onZoomOut={handleGlobeZoomOut}
-              onReset={handleGlobeReset}
-            />
-            <SeverityLegend dark />
+            <GlobeOverlay arcCount={arcs.length} hqCount={activeHqs.length} criticalCount={criticalCount} />
+            <ZoomControls onZoomIn={zoomIn} onZoomOut={zoomOut} onReset={zoomReset} />
+            <SeverityLegend />
+
             <Globe
               ref={globeRef}
               width={dimensions.width}
               height={dimensions.height}
-              backgroundColor="#060d1a"
-              // Use night texture — we own the dark theme fully
-              globeImageUrl="https://unpkg.com/three-globe/example/img/earth-night.jpg"
-              bumpImageUrl="https://unpkg.com/three-globe/example/img/earth-topology.png"
-              atmosphereColor="#1e6fcc"
-              atmosphereAltitude={0.22}
-              animateIn
+              backgroundColor={GLOBE_BG}
+              globeImageUrl=""
+              globeMaterial={globeMaterial}
+              atmosphereColor="#93c5fd"
+              atmosphereAltitude={0.18}
               showGraticules={false}
+              animateIn
 
-              // ── Arcs — solid, smooth, no dash blink ──
+              // Hex dot surface
+              hexPolygonsData={hexPolygons as object[]}
+              hexPolygonResolution={HEX_RES}
+              hexPolygonMargin={HEX_MARGIN}
+              hexPolygonUseDots={true}
+              hexPolygonColor={() => HEX_COLOR}
+              hexPolygonAltitude={0.001}
+
+              // ── Arcs: solid gradient, destination = exact HQ coords ──
               arcsData={arcs}
               arcStartLat={(d) => (d as ArcVisual).startLat}
               arcStartLng={(d) => (d as ArcVisual).startLng}
               arcEndLat={(d) => (d as ArcVisual).endLat}
               arcEndLng={(d) => (d as ArcVisual).endLng}
-              arcColor={(d: unknown) => {
-                const arc = d as ArcVisual;
-                const highlighted = hoveredId === arc.id || selectedId === arc.id;
-                // Return gradient array for a nice fade effect
-                return [
-                  `${arc.color}55`,  // source: semi-transparent
-                  arc.color,         // peak: full
-                  `${arc.color}cc`,  // destination: slightly faded
-                ];
-              }}
-              // Solid lines: dashLength=1, dashGap=0 = no blinking
+              arcColor={(d: unknown) => { const a = d as ArcVisual; return [`${a.color}22`, a.color, `${a.color}cc`]; }}
               arcDashLength={1}
               arcDashGap={0}
               arcDashAnimateTime={0}
               arcStroke={(d) => (d as ArcVisual).stroke}
-              arcAltitude={(d) => {
-                const arc = d as ArcVisual;
-                return getArcAltitude(arc.startLat, arc.startLng, arc.endLat, arc.endLng);
-              }}
+              arcAltitude={(d) => { const a = d as ArcVisual; return arcAlt(a.startLat, a.startLng, a.endLat, a.endLng); }}
               arcCurveResolution={64}
               arcsTransitionDuration={800}
               onArcHover={(arc) => setHoveredId((arc as ArcVisual | null)?.id ?? null)}
-              onArcClick={(arc) => {
-                const t = (arc as ArcVisual | null)?.threat;
-                if (t) handleSelectThreat(t);
-              }}
+              onArcClick={(arc) => { const t = (arc as ArcVisual | null)?.threat; if (t) selectThreat(t); }}
 
-              // ── Source points ──
-              pointsData={points}
-              pointLat={(d) => (d as PointVisual).lat}
-              pointLng={(d) => (d as PointVisual).lng}
-              pointColor={(d) => (d as PointVisual).color}
-              pointAltitude={GLOBE_POINT_ALTITUDE}
-              pointRadius={GLOBE_POINT_RADIUS}
+              // ── Points: merged src + dst with per-point radius/altitude ──
+              pointsData={allGlobePoints}
+              pointLat={(d) => (d as GlobePoint).lat}
+              pointLng={(d) => (d as GlobePoint).lng}
+              pointColor={(d) => (d as GlobePoint).color}
+              pointAltitude={(d) => (d as GlobePoint).altitude}
+              pointRadius={(d) => (d as GlobePoint).radius}
               pointResolution={16}
               pointsMerge={false}
               pointsTransitionDuration={600}
-              onPointHover={(pt) => setHoveredId((pt as PointVisual | null)?.id ?? null)}
+              onPointHover={(pt) => {
+                const p = pt as GlobePoint | null;
+                if (!p || p._type === "dst") return; // HQ points don't drive hover
+                setHoveredId(p.id);
+              }}
               onPointClick={(pt) => {
-                const t = (pt as PointVisual | null)?.threat;
-                if (t) handleSelectThreat(t);
+                const p = pt as GlobePoint | null;
+                if (!p) return;
+                if (p._type === "src") selectThreat((p.payload as SrcPoint).threat);
               }}
 
-              // ── Rings — pulse on destination HQs ──
+              // ── Rings: threat rings at HQ coords + ambient HQ pulse ──
               ringsData={allRings}
               ringLat={(d) => (d as RingVisual).lat}
               ringLng={(d) => (d as RingVisual).lng}
               ringColor={(d: unknown) => {
                 const r = d as RingVisual;
-                // Fade from color to transparent
                 return (t: number) => {
-                  const alpha = Math.max(0, 1 - t);
-                  return `${r.color}${Math.round(alpha * 160).toString(16).padStart(2, "0")}`;
+                  const a = Math.max(0, 1 - t);
+                  return `${r.color}${Math.round(a * 180).toString(16).padStart(2, "0")}`;
                 };
               }}
               ringMaxRadius={(d) => (d as RingVisual).maxR}
               ringPropagationSpeed={(d) => (d as RingVisual).propagationSpeed}
               ringRepeatPeriod={(d) => (d as RingVisual).repeatPeriod}
 
-              // ── HQ labels ──
-              labelsData={activeHqs}
-              labelLat={(d) => (d as HqNode).lat}
-              labelLng={(d) => (d as HqNode).lon}
-              labelText={(d) => (d as HqNode).name}
-              labelColor={(d) => String((d as HqNode).accent)}
+              // ── Labels: source city names + HQ names ──
+              labelsData={allLabels}
+              labelLat={(d) => (d as typeof allLabels[0]).lat}
+              labelLng={(d) => (d as typeof allLabels[0]).lng}
+              labelText={(d) => (d as typeof allLabels[0]).text}
+              labelColor={(d) => (d as typeof allLabels[0]).color}
               labelAltitude={GLOBE_LABEL_ALTITUDE}
-              labelSize={GLOBE_LABEL_SIZE}
-              labelDotRadius={GLOBE_LABEL_DOT_RADIUS}
+              labelSize={(d) => (d as typeof allLabels[0]).size}
+              labelDotRadius={(d) => (d as typeof allLabels[0]).dotR}
               labelsTransitionDuration={500}
             />
           </>
-        ) : null}
+        )}
 
         {/* ── 2D Map ────────────────────────────────────────────────────── */}
-        {viewMode === "map" ? (
+        {viewMode === "map" && (
           <>
             <ZoomControls
-              onZoomIn={() =>
-                setMapTransform((p) => ({ ...p, scale: Math.min(8, p.scale * 1.25) }))
-              }
-              onZoomOut={() =>
-                setMapTransform((p) => ({ ...p, scale: Math.max(0.5, p.scale * 0.8) }))
-              }
-              onReset={resetMapTransform}
+              onZoomIn={() => setMapTransform((p) => ({ ...p, scale: Math.min(8, p.scale * 1.25) }))}
+              onZoomOut={() => setMapTransform((p) => ({ ...p, scale: Math.max(0.5, p.scale * 0.8) }))}
+              onReset={resetMap}
             />
             <SeverityLegend />
 
@@ -679,19 +628,12 @@ export default function ThreatGlobe3D({
               ref={mapContainerRef}
               className="absolute inset-0 overflow-hidden bg-slate-50 select-none"
               style={{ cursor: mapDragRef.current.active ? "grabbing" : "grab" }}
-              onMouseDown={handleMapMouseDown}
-              onMouseMove={handleMapMouseMove}
-              onMouseUp={handleMapMouseUp}
-              onMouseLeave={handleMapMouseUp}
+              onMouseDown={onMapDown}
+              onMouseMove={onMapMove}
+              onMouseUp={onMapUp}
+              onMouseLeave={onMapUp}
             >
-              <div
-                style={{
-                  transform: `translate(${mapTransform.x}px, ${mapTransform.y}px) scale(${mapTransform.scale})`,
-                  transformOrigin: "center center",
-                  width: "100%",
-                  height: "100%",
-                }}
-              >
+              <div style={{ transform: `translate(${mapTransform.x}px,${mapTransform.y}px) scale(${mapTransform.scale})`, transformOrigin: "center center", width: "100%", height: "100%" }}>
                 <ComposableMap
                   width={dimensions.width}
                   height={dimensions.height}
@@ -710,19 +652,15 @@ export default function ThreatGlobe3D({
                           fill={MAP_COUNTRY_FILL}
                           stroke={MAP_COUNTRY_STROKE}
                           strokeWidth={0.5}
-                          style={{
-                            default: { outline: "none" },
-                            hover: { outline: "none", fill: "#cbd5e1" },
-                            pressed: { outline: "none" },
-                          }}
+                          style={{ default: { outline: "none" }, hover: { outline: "none", fill: "#cbd5e1" }, pressed: { outline: "none" } }}
                         />
                       ))
                     }
                   </Geographies>
 
-                  {/* Routes */}
+                  {/* Arc lines: end at exact HQ lat/lon */}
                   {arcs.map((arc) => {
-                    const highlighted = hoveredId === arc.id || selectedId === arc.id;
+                    const hi = hoveredId === arc.id || selectedId === arc.id;
                     return (
                       <Line
                         key={arc.id}
@@ -730,90 +668,103 @@ export default function ThreatGlobe3D({
                         to={[arc.endLng, arc.endLat]}
                         stroke={arc.color}
                         strokeWidth={Math.max(arc.stroke * MAP_ROUTE_STROKE_MULTIPLIER, 1)}
-                        strokeOpacity={highlighted ? 1 : 0.65}
+                        strokeOpacity={hi ? 1 : 0.6}
                         strokeLinecap="round"
-                        strokeDasharray={highlighted ? undefined : "8 6"}
+                        strokeDasharray={hi ? undefined : "8 6"}
                         onMouseEnter={() => setHoveredId(arc.id)}
                         onMouseLeave={() => setHoveredId(null)}
-                        onClick={() => {
-                          if (!mapDragRef.current.moved) handleSelectThreat(arc.threat);
-                        }}
+                        onClick={() => { if (!mapDragRef.current.moved) selectThreat(arc.threat); }}
                         style={{ cursor: "pointer", pointerEvents: "auto" }}
                       />
                     );
                   })}
 
-                  {/* Source points */}
-                  {points.map((pt) => (
+                  {/* Source points: attacker city */}
+                  {srcPoints.map((pt) => (
                     <Marker key={pt.id} coordinates={[pt.lng, pt.lat]}>
                       <g
                         onMouseEnter={() => setHoveredId(pt.id)}
                         onMouseLeave={() => setHoveredId(null)}
-                        onClick={() => {
-                          if (!mapDragRef.current.moved) handleSelectThreat(pt.threat);
-                        }}
+                        onClick={() => { if (!mapDragRef.current.moved) selectThreat(pt.threat); }}
                         style={{ cursor: "pointer" }}
                       >
-                        <circle r={MAP_SOURCE_POINT_RADIUS + 3} fill={pt.color} opacity={0.18} />
+                        <circle r={MAP_SOURCE_POINT_RADIUS + 4} fill={pt.color} opacity={0.15} />
                         <circle r={MAP_SOURCE_POINT_RADIUS} fill={pt.color} />
                       </g>
                     </Marker>
                   ))}
 
-                  {/* HQ nodes */}
-                  {activeHqs.map((hq) => (
-                    <Marker key={hq.id} coordinates={[hq.lon, hq.lat]}>
-                      <g>
-                        <circle
-                          r={MAP_HQ_POINT_RADIUS * 1.8}
-                          fill="none"
-                          stroke={hq.accent}
-                          strokeOpacity={0.35}
-                        />
-                        <circle r={MAP_HQ_POINT_RADIUS} fill={hq.accent} />
-                        <text
-                          x={MAP_HQ_POINT_RADIUS + 6}
-                          y={-MAP_HQ_POINT_RADIUS}
-                          fill={hq.accent}
-                          fontSize="10"
-                          fontWeight="600"
-                          letterSpacing="0.04em"
-                          style={{ pointerEvents: "none", userSelect: "none" }}
-                        >
-                          {hq.name}
-                        </text>
-                      </g>
-                    </Marker>
-                  ))}
-
-                  {/* City labels for recent sources */}
-                  {recentLabels.map((pt) => (
-                    <Marker key={`lbl-${pt.id}`} coordinates={[pt.lng, pt.lat]}>
+                  {/* Source city labels (recent arcs only) */}
+                  {recentLbls.map((pt) => (
+                    <Marker key={`lbl-src-${pt.id}`} coordinates={[pt.lng, pt.lat]}>
                       <text
                         x={MAP_SOURCE_POINT_RADIUS + 5}
-                        y={MAP_SOURCE_POINT_RADIUS + 9}
-                        fill="#64748b"
+                        y={MAP_SOURCE_POINT_RADIUS - 2}
+                        fill="#475569"
                         fontSize="9"
+                        fontWeight="500"
                         style={{ pointerEvents: "none", userSelect: "none" }}
                       >
-                        {pt.threat.src_geo.city}
+                        {pt.city}
                       </text>
                     </Marker>
                   ))}
+
+                  {/* HQ destination nodes — always visible, highlighted when under attack */}
+                  {dstPoints.map((dp) => {
+                    const underAttack = arcThreats.some((e) => e.threat.target_hq_id === dp.hq.id);
+                    return (
+                      <Marker key={dp.id} coordinates={[dp.lng, dp.lat]}>
+                        <g>
+                          {/* Pulse ring when under attack */}
+                          {underAttack && (
+                            <circle r={MAP_HQ_POINT_RADIUS * 2.8} fill="none" stroke={dp.hq.accent} strokeOpacity={0.25} strokeWidth={1} />
+                          )}
+                          {/* Outer ring always */}
+                          <circle r={MAP_HQ_POINT_RADIUS * 1.7} fill="none" stroke={dp.hq.accent} strokeOpacity={underAttack ? 0.5 : 0.2} strokeWidth={0.8} />
+                          {/* Diamond shape for HQ (rotated square) */}
+                          <rect
+                            x={-MAP_HQ_POINT_RADIUS * 0.85}
+                            y={-MAP_HQ_POINT_RADIUS * 0.85}
+                            width={MAP_HQ_POINT_RADIUS * 1.7}
+                            height={MAP_HQ_POINT_RADIUS * 1.7}
+                            fill={dp.color}
+                            transform="rotate(45)"
+                            rx={1}
+                          />
+                          {/* HQ name label */}
+                          <text
+                            x={MAP_HQ_POINT_RADIUS + 7}
+                            y={-MAP_HQ_POINT_RADIUS + 1}
+                            fill={dp.hq.accent}
+                            fontSize="10"
+                            fontWeight="600"
+                            letterSpacing="0.03em"
+                            style={{ pointerEvents: "none", userSelect: "none" }}
+                          >
+                            {dp.name}
+                          </text>
+                          {/* City sub-label */}
+                          <text
+                            x={MAP_HQ_POINT_RADIUS + 7}
+                            y={-MAP_HQ_POINT_RADIUS + 11}
+                            fill="#94a3b8"
+                            fontSize="8"
+                            style={{ pointerEvents: "none", userSelect: "none" }}
+                          >
+                            {dp.hq.city}
+                          </text>
+                        </g>
+                      </Marker>
+                    );
+                  })}
                 </ComposableMap>
               </div>
             </div>
           </>
-        ) : null}
+        )}
 
-        {/* Route preview */}
-        <RoutePreview
-          dark={isGlobeMode}
-          threat={previewThreat}
-          onOpen={() => {
-            if (previewThreat) handleSelectThreat(previewThreat);
-          }}
-        />
+        <RoutePreview threat={previewThreat} onOpen={() => { if (previewThreat) selectThreat(previewThreat); }} />
       </div>
     </section>
   );
