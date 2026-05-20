@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Globe, { type GlobeMethods } from "react-globe.gl";
 import {
   ComposableMap,
@@ -41,7 +41,6 @@ import {
   MAX_GLOBE_ARCS,
   MITIGATED_COLOR,
   SEVERITY_COLORS,
-  THREAT_TYPE_DESCRIPTIONS,
 } from "../../utils/constants";
 
 type ThreatGlobe3DProps = {
@@ -51,55 +50,99 @@ type ThreatGlobe3DProps = {
   onSelectThreat?: (threat: ThreatPayload) => void;
 };
 
-type ArcThreat = {
-  threat: ThreatPayload;
-  insertedAt: number;
-};
-
+type ArcThreat = { threat: ThreatPayload; insertedAt: number };
 type GlobeViewMode = keyof typeof GLOBE_VIEW_MODE_LABELS;
 
 type ArcVisual = {
-  id: string;
-  startLat: number;
-  startLng: number;
-  endLat: number;
-  endLng: number;
-  color: string;
-  stroke: number;
-  threat: ThreatPayload;
+  id: string; startLat: number; startLng: number; endLat: number; endLng: number;
+  color: string; stroke: number; threat: ThreatPayload;
 };
-
 type PointVisual = {
-  id: string;
-  lat: number;
-  lng: number;
-  color: string;
-  threat: ThreatPayload;
+  id: string; lat: number; lng: number; color: string; threat: ThreatPayload;
 };
 
-function formatTimestamp(timestamp: string) {
-  return new Date(timestamp).toLocaleTimeString("en-US", {
-    hour12: false,
-  });
+// ─── Compact one-liner hover overlay ────────────────────────────────────────
+
+function RoutePreview({
+  threat,
+  onOpen,
+}: {
+  threat: ThreatPayload | null;
+  onOpen: () => void;
+}) {
+  if (!threat) return null;
+  const color = SEVERITY_COLORS[threat.severity as keyof typeof SEVERITY_COLORS] ?? SEVERITY_COLORS.Low;
+
+  return (
+    <div className="pointer-events-auto absolute bottom-3 left-3 right-3 z-30 xl:right-auto xl:max-w-lg">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex w-full items-center gap-2.5 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 shadow-md backdrop-blur-sm
+                   text-left transition hover:border-blue-300 hover:shadow-lg"
+      >
+        <span
+          className="h-2 w-2 shrink-0 rounded-full"
+          style={{ backgroundColor: color }}
+        />
+        <span className="text-xs font-semibold text-slate-700">{threat.severity}</span>
+        <span className="text-slate-300">·</span>
+        <span className="text-xs font-medium text-slate-600">{threat.type}</span>
+        <span className="text-slate-300">·</span>
+        <span className="text-xs text-slate-500">{threat.malware_family}</span>
+        <span className="text-slate-300">·</span>
+        <span className="min-w-0 truncate text-xs text-slate-500">
+          {threat.src_geo.city}, {threat.src_geo.country} → {threat.target_hq_name}
+        </span>
+        <span className="ml-auto shrink-0 text-xs font-medium text-blue-600">Investigate →</span>
+      </button>
+    </div>
+  );
 }
 
-function ModeButton({
-  label,
-  active,
-  onClick,
+// ─── Zoom controls ─────────────────────────────────────────────────────────
+
+function ZoomControls({
+  onZoomIn,
+  onZoomOut,
+  onReset,
 }: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onReset: () => void;
 }) {
+  return (
+    <div className="absolute right-3 top-3 z-30 flex flex-col gap-1">
+      {[
+        { label: "+", title: "Zoom in", fn: onZoomIn },
+        { label: "−", title: "Zoom out", fn: onZoomOut },
+        { label: "⊙", title: "Reset", fn: onReset },
+      ].map(({ label, title, fn }) => (
+        <button
+          key={label}
+          type="button"
+          title={title}
+          onClick={fn}
+          className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-sm font-medium
+                     text-slate-600 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600"
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─── Mode button ────────────────────────────────────────────────────────────
+
+function ModeButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
-      className={`rounded-md border px-3 py-1.5 text-[11px] uppercase tracking-[0.22em] transition ${
-        active
-          ? "border-sky-300/35 bg-sky-400/10 text-sky-100"
-          : "border-white/10 bg-white/[0.03] text-slate-500 hover:border-white/20 hover:text-slate-200"
-      }`}
+      className={`rounded-md border px-3 py-1.5 text-xs font-medium transition ${active
+          ? "border-blue-200 bg-blue-50 text-blue-700"
+          : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
+        }`}
       onClick={onClick}
     >
       {label}
@@ -107,69 +150,7 @@ function ModeButton({
   );
 }
 
-function PreviewOverlay({
-  threat,
-  isPinned,
-}: {
-  threat: ThreatPayload | null;
-  isPinned: boolean;
-}) {
-  if (!threat) {
-    return null;
-  }
-
-  const severityColor =
-    SEVERITY_COLORS[threat.severity as keyof typeof SEVERITY_COLORS] ?? SEVERITY_COLORS.Low;
-  const description =
-    THREAT_TYPE_DESCRIPTIONS[threat.type as keyof typeof THREAT_TYPE_DESCRIPTIONS] ??
-    "Hostile activity that warrants containment and deeper investigation.";
-
-  return (
-    <div className="pointer-events-none absolute bottom-4 left-4 right-4 z-30">
-      <div className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-lg">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: severityColor }} />
-            <span className="text-xs font-semibold text-slate-200">Route Preview</span>
-          </div>
-          <span className="text-[11px] text-slate-500">
-            {isPinned ? "Selected Route" : "Hover Route"}
-          </span>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-[1.1fr_0.9fr]">
-          <div>
-            <div className="flex flex-wrap items-center gap-2 text-sm text-slate-100">
-              <span>{threat.type}</span>
-              <span className="text-slate-500">•</span>
-              <span>{threat.malware_family}</span>
-              <span className="text-slate-500">•</span>
-              <span>{threat.severity}</span>
-            </div>
-            <p className="mt-2 text-sm leading-6 text-slate-300">{description}</p>
-          </div>
-
-          <div className="grid gap-2 text-[12px] text-slate-300">
-            <div>
-              <span className="text-slate-500">Route</span>
-              <div className="mt-1">
-                {threat.src_geo.city}, {threat.src_geo.country} {"->"} {threat.target_hq_name}
-              </div>
-            </div>
-            <div>
-              <span className="text-slate-500">Indicator</span>
-              <div className="mt-1">{threat.src_ip}</div>
-            </div>
-            <div>
-              <span className="text-slate-500">Observed</span>
-              <div className="mt-1">{formatTimestamp(threat.timestamp)}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+// ─── Main component ─────────────────────────────────────────────────────────
 
 export default function ThreatGlobe3D({
   threats,
@@ -180,151 +161,157 @@ export default function ThreatGlobe3D({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
   const processedIdsRef = useRef<Set<string>>(new Set());
-  const latestThreatIdsRef = useRef<Set<string>>(new Set());
+  const latestIdsRef = useRef<Set<string>>(new Set());
+  const mapDragRef = useRef<{ active: boolean; sx: number; sy: number; ox: number; oy: number; moved: boolean }>({
+    active: false, sx: 0, sy: 0, ox: 0, oy: 0, moved: false,
+  });
+
   const [dimensions, setDimensions] = useState(GLOBE_RESIZE_FALLBACK);
   const [arcThreats, setArcThreats] = useState<ArcThreat[]>([]);
   const [viewMode, setViewMode] = useState<GlobeViewMode>("map");
-  const [hoveredThreatId, setHoveredThreatId] = useState<string | null>(null);
-  const [selectedThreatId, setSelectedThreatId] = useState<string | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Map transform state
+  const [mapTransform, setMapTransform] = useState({ scale: 1, x: 0, y: 0 });
 
+  // ── Resize observer ─────────────────────────────────────────────────────
   useEffect(() => {
     const container = containerRef.current;
-
-    if (!container) {
-      return undefined;
-    }
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      const entry = entries[0];
-
-      if (!entry) {
-        return;
-      }
-
+    if (!container) return undefined;
+    const ro = new ResizeObserver((entries) => {
+      const e = entries[0];
+      if (!e) return;
       setDimensions({
-        width: Math.max(Math.floor(entry.contentRect.width), 1),
-        height: Math.max(Math.floor(entry.contentRect.height), 1),
+        width: Math.max(Math.floor(e.contentRect.width), 1),
+        height: Math.max(Math.floor(e.contentRect.height), 1),
       });
     });
-
-    resizeObserver.observe(container);
-
-    return () => resizeObserver.disconnect();
+    ro.observe(container);
+    return () => ro.disconnect();
   }, []);
 
+  // ── Globe init ───────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!globeRef.current || viewMode !== "globe") {
-      return;
-    }
-
+    if (!globeRef.current || viewMode !== "globe") return;
     globeRef.current.pointOfView({ altitude: GLOBE_VIEW_ALTITUDE }, 0);
     const controls = globeRef.current.controls();
     controls.autoRotate = true;
     controls.autoRotateSpeed = GLOBE_AUTO_ROTATE_SPEED;
   }, [dimensions.height, dimensions.width, viewMode]);
 
+  // ── Arc ingestion ────────────────────────────────────────────────────────
   useEffect(() => {
-    const nextEntries: ArcThreat[] = [];
-    latestThreatIdsRef.current = new Set(threats.map((threat) => threat.id));
-
-    threats.forEach((threat) => {
-      if (!processedIdsRef.current.has(threat.id)) {
-        processedIdsRef.current.add(threat.id);
-        nextEntries.push({
-          threat,
-          insertedAt: Date.now(),
-        });
+    const next: ArcThreat[] = [];
+    latestIdsRef.current = new Set(threats.map((t) => t.id));
+    threats.forEach((t) => {
+      if (!processedIdsRef.current.has(t.id)) {
+        processedIdsRef.current.add(t.id);
+        next.push({ threat: t, insertedAt: Date.now() });
       }
     });
-
-    if (nextEntries.length === 0) {
-      return;
-    }
-
-    setArcThreats((previous) => {
-      const next = [...previous, ...nextEntries].slice(-MAX_GLOBE_ARCS);
+    if (next.length === 0) return;
+    setArcThreats((prev) => {
+      const merged = [...prev, ...next].slice(-MAX_GLOBE_ARCS);
       processedIdsRef.current = new Set([
-        ...latestThreatIdsRef.current,
-        ...next.map((entry) => entry.threat.id),
+        ...latestIdsRef.current,
+        ...merged.map((e) => e.threat.id),
       ]);
-      return next;
+      return merged;
     });
   }, [threats]);
 
+  // ── Arc decay sweep ──────────────────────────────────────────────────────
   useEffect(() => {
-    const intervalId = window.setInterval(() => {
+    const id = window.setInterval(() => {
       const cutoff = Date.now() - ARC_DECAY_MS;
-      setArcThreats((previous) => {
-        const next = previous.filter((entry) => entry.insertedAt >= cutoff);
+      setArcThreats((prev) => {
+        const next = prev.filter((e) => e.insertedAt >= cutoff);
         processedIdsRef.current = new Set([
-          ...latestThreatIdsRef.current,
-          ...next.map((entry) => entry.threat.id),
+          ...latestIdsRef.current,
+          ...next.map((e) => e.threat.id),
         ]);
         return next;
       });
     }, GLOBE_DECAY_SWEEP_MS);
-
-    return () => window.clearInterval(intervalId);
+    return () => window.clearInterval(id);
   }, []);
 
+  // ── Clean up stale hovered/selected ────────────────────────────────────
   useEffect(() => {
-    if (selectedThreatId && !arcThreats.some((entry) => entry.threat.id === selectedThreatId)) {
-      setSelectedThreatId(null);
-    }
+    if (selectedId && !arcThreats.some((e) => e.threat.id === selectedId)) setSelectedId(null);
+    if (hoveredId && !arcThreats.some((e) => e.threat.id === hoveredId)) setHoveredId(null);
+  }, [arcThreats, hoveredId, selectedId]);
 
-    if (hoveredThreatId && !arcThreats.some((entry) => entry.threat.id === hoveredThreatId)) {
-      setHoveredThreatId(null);
-    }
-  }, [arcThreats, hoveredThreatId, selectedThreatId]);
+  // ── Map zoom/pan handlers ────────────────────────────────────────────────
+  const handleMapWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    setMapTransform((prev) => ({
+      ...prev,
+      scale: Math.max(0.5, Math.min(8, prev.scale * (e.deltaY < 0 ? 1.15 : 0.88))),
+    }));
+  }, []);
 
+  const handleMapMouseDown = useCallback((e: React.MouseEvent) => {
+    mapDragRef.current = { active: true, sx: e.clientX, sy: e.clientY, ox: mapTransform.x, oy: mapTransform.y, moved: false };
+  }, [mapTransform]);
+
+  const handleMapMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!mapDragRef.current.active) return;
+    const dx = e.clientX - mapDragRef.current.sx;
+    const dy = e.clientY - mapDragRef.current.sy;
+    if (Math.abs(dx) + Math.abs(dy) > 3) mapDragRef.current.moved = true;
+    setMapTransform((prev) => ({ ...prev, x: mapDragRef.current.ox + dx, y: mapDragRef.current.oy + dy }));
+  }, []);
+
+  const handleMapMouseUp = useCallback(() => {
+    mapDragRef.current.active = false;
+  }, []);
+
+  const resetMapTransform = useCallback(() => setMapTransform({ scale: 1, x: 0, y: 0 }), []);
+
+  // ── Build visual data ────────────────────────────────────────────────────
   const arcs: ArcVisual[] = arcThreats.map(({ threat }) => {
-    const severityColor =
-      SEVERITY_COLORS[threat.severity as keyof typeof SEVERITY_COLORS] ?? SEVERITY_COLORS.Low;
-    const isHighlighted = hoveredThreatId === threat.id || selectedThreatId === threat.id;
-
+    const color = SEVERITY_COLORS[threat.severity as keyof typeof SEVERITY_COLORS] ?? SEVERITY_COLORS.Low;
+    const highlighted = hoveredId === threat.id || selectedId === threat.id;
     return {
       id: threat.id,
-      startLat: threat.src_geo.lat,
-      startLng: threat.src_geo.lon,
-      endLat: threat.dst_geo.lat,
-      endLng: threat.dst_geo.lon,
-      color: mitigatedIds.has(threat.id) ? MITIGATED_COLOR : severityColor,
-      stroke:
-        (ARC_STROKE_BY_SEVERITY[threat.severity] ?? ARC_STROKE_BY_SEVERITY.Low) *
-        (isHighlighted ? 1.8 : 1),
+      startLat: threat.src_geo.lat, startLng: threat.src_geo.lon,
+      endLat: threat.dst_geo.lat, endLng: threat.dst_geo.lon,
+      color: mitigatedIds.has(threat.id) ? MITIGATED_COLOR : color,
+      stroke: (ARC_STROKE_BY_SEVERITY[threat.severity] ?? ARC_STROKE_BY_SEVERITY.Low) * (highlighted ? 2 : 1),
       threat,
     };
   });
 
   const points: PointVisual[] = arcThreats.map(({ threat }) => {
-    const severityColor =
-      SEVERITY_COLORS[threat.severity as keyof typeof SEVERITY_COLORS] ?? SEVERITY_COLORS.Low;
-
+    const color = SEVERITY_COLORS[threat.severity as keyof typeof SEVERITY_COLORS] ?? SEVERITY_COLORS.Low;
     return {
       id: threat.id,
-      lat: threat.src_geo.lat,
-      lng: threat.src_geo.lon,
-      color: mitigatedIds.has(threat.id) ? MITIGATED_COLOR : severityColor,
+      lat: threat.src_geo.lat, lng: threat.src_geo.lon,
+      color: mitigatedIds.has(threat.id) ? MITIGATED_COLOR : color,
       threat,
     };
   });
 
   const latestThreat = arcThreats[arcThreats.length - 1]?.threat ?? null;
   const previewThreat =
-    arcThreats.find((entry) => entry.threat.id === hoveredThreatId)?.threat ??
-    arcThreats.find((entry) => entry.threat.id === selectedThreatId)?.threat ??
+    arcThreats.find((e) => e.threat.id === hoveredId)?.threat ??
+    arcThreats.find((e) => e.threat.id === selectedId)?.threat ??
     latestThreat;
-  const previewPinned = Boolean(selectedThreatId && hoveredThreatId !== selectedThreatId);
-  const recentPointLabels = points.slice(-MAP_LABEL_LIMIT);
+  const recentLabels = points.slice(-MAP_LABEL_LIMIT);
+
+  const handleSelectThreat = (threat: ThreatPayload) => {
+    setSelectedId(threat.id);
+    onSelectThreat?.(threat);
+  };
 
   return (
     <section className="panel-shell relative flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="flex items-center justify-between border-b border-white/8 px-4 py-3">
+      {/* Header */}
+      <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3">
         <div>
-          <h2 className="text-sm font-semibold text-slate-100">Threat Geography</h2>
-          <p className="text-xs text-slate-400">
-            Source routes and affected command centers
-          </p>
+          <h2 className="text-sm font-semibold text-slate-800">Threat Geography</h2>
+          <p className="text-xs text-slate-500">Source routes and active command-centre targets</p>
         </div>
         <div className="flex items-center gap-2">
           {Object.entries(GLOBE_VIEW_MODE_LABELS).map(([mode, label]) => (
@@ -335,18 +322,16 @@ export default function ThreatGlobe3D({
               onClick={() => setViewMode(mode as GlobeViewMode)}
             />
           ))}
-          <div className="rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-xs text-slate-300">
-            {arcs.length} active routes
+          <div className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600">
+            {arcs.length} routes
           </div>
         </div>
       </div>
 
-      <div
-        ref={containerRef}
-        className="relative min-h-0 flex-1"
-      >
-        <div className="pointer-events-none absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(15,23,42,0.02),transparent_38%)]" />
+      {/* Map / Globe area */}
+      <div ref={containerRef} className="relative min-h-0 flex-1 overflow-hidden">
 
+        {/* ── 3D Globe ─────────────────────────────────────────────────── */}
         {viewMode === "globe" ? (
           <Globe
             ref={globeRef}
@@ -357,183 +342,171 @@ export default function ThreatGlobe3D({
             bumpImageUrl={GLOBE_BUMP_URL}
             animateIn
             arcsData={arcs}
-            arcStartLat="startLat"
-            arcStartLng="startLng"
-            arcEndLat="endLat"
-            arcEndLng="endLng"
+            arcStartLat="startLat" arcStartLng="startLng"
+            arcEndLat="endLat" arcEndLng="endLng"
             arcColor="color"
             arcDashLength={GLOBE_ARC_DASH_LENGTH}
             arcDashGap={GLOBE_ARC_DASH_GAP}
             arcDashAnimateTime={GLOBE_ARC_ANIMATE_TIME_MS}
             arcStroke="stroke"
-            onArcHover={(arc) => setHoveredThreatId((arc as ArcVisual | null)?.id ?? null)}
+            onArcHover={(arc) => setHoveredId((arc as ArcVisual | null)?.id ?? null)}
             onArcClick={(arc) => {
-              const threat = (arc as ArcVisual | null)?.threat;
-              if (!threat) {
-                return;
-              }
-              setSelectedThreatId(threat.id);
-              onSelectThreat?.(threat);
+              const t = (arc as ArcVisual | null)?.threat;
+              if (t) handleSelectThreat(t);
             }}
             pointsData={points}
-            pointLat="lat"
-            pointLng="lng"
-            pointColor="color"
+            pointLat="lat" pointLng="lng" pointColor="color"
             pointAltitude={GLOBE_POINT_ALTITUDE}
             pointRadius={GLOBE_POINT_RADIUS}
-            onPointHover={(point) => setHoveredThreatId((point as PointVisual | null)?.id ?? null)}
-            onPointClick={(point) => {
-              const threat = (point as PointVisual | null)?.threat;
-              if (!threat) {
-                return;
-              }
-              setSelectedThreatId(threat.id);
-              onSelectThreat?.(threat);
+            onPointHover={(pt) => setHoveredId((pt as PointVisual | null)?.id ?? null)}
+            onPointClick={(pt) => {
+              const t = (pt as PointVisual | null)?.threat;
+              if (t) handleSelectThreat(t);
             }}
             labelsData={activeHqs}
-            labelLat="lat"
-            labelLng="lon"
-            labelText="name"
+            labelLat="lat" labelLng="lon" labelText="name"
             labelColor={(hq) => String((hq as HqNode).accent)}
             labelAltitude={GLOBE_LABEL_ALTITUDE}
             labelSize={GLOBE_LABEL_SIZE}
             labelDotRadius={GLOBE_LABEL_DOT_RADIUS}
           />
-        ) : (
-          <div className="relative h-full w-full overflow-hidden bg-slate-50">
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.75),transparent_48%)]" />
-            <ComposableMap
-              width={dimensions.width}
-              height={dimensions.height}
-              projection="geoEqualEarth"
-              projectionConfig={{ scale: MAP_PROJECTION_SCALE }}
-              style={{ width: "100%", height: "100%", position: "relative", zIndex: 20 }}
+        ) : null}
+
+        {/* ── 2D Map ───────────────────────────────────────────────────── */}
+        {viewMode === "map" ? (
+          <>
+            {/* Zoom controls */}
+            <ZoomControls
+              onZoomIn={() => setMapTransform((p) => ({ ...p, scale: Math.min(8, p.scale * 1.25) }))}
+              onZoomOut={() => setMapTransform((p) => ({ ...p, scale: Math.max(0.5, p.scale * 0.8) }))}
+              onReset={resetMapTransform}
+            />
+
+            {/* Scrollable/zoomable map wrapper */}
+            <div
+              className="absolute inset-0 overflow-hidden bg-slate-50"
+              style={{ cursor: mapDragRef.current.active ? "grabbing" : "grab" }}
+              onWheel={handleMapWheel}
+              onMouseDown={handleMapMouseDown}
+              onMouseMove={handleMapMouseMove}
+              onMouseUp={handleMapMouseUp}
+              onMouseLeave={handleMapMouseUp}
             >
-              <Sphere
-                id="threat-map-sphere"
-                fill="#f8fafc"
-                stroke="rgba(15,23,42,0.08)"
-                strokeWidth={0.6}
-              />
-              <Graticule stroke={MAP_GRATICULE_STROKE} />
-              <Geographies geography={MAP_GEOGRAPHY_URL}>
-                {({ geographies }) =>
-                  geographies.map((geography) => (
-                    <Geography
-                      key={geography.rsmKey}
-                      geography={geography}
-                      fill={MAP_COUNTRY_FILL}
-                      stroke={MAP_COUNTRY_STROKE}
-                      strokeWidth={0.6}
-                    />
-                  ))
-                }
-              </Geographies>
-
-              {arcs.map((arc) => {
-                const isHighlighted = hoveredThreatId === arc.id || selectedThreatId === arc.id;
-
-                return (
-                  <Line
-                    key={arc.id}
-                    from={[arc.startLng, arc.startLat]}
-                    to={[arc.endLng, arc.endLat]}
-                    stroke={arc.color}
-                    strokeWidth={Math.max(arc.stroke * MAP_ROUTE_STROKE_MULTIPLIER, 1)}
-                    strokeOpacity={isHighlighted ? 1 : 0.76}
-                    strokeLinecap="round"
-                    strokeDasharray="9 7"
-                    onMouseEnter={() => setHoveredThreatId(arc.id)}
-                    onMouseLeave={() => setHoveredThreatId(null)}
-                    onClick={() => {
-                      setSelectedThreatId(arc.id);
-                      onSelectThreat?.(arc.threat);
-                    }}
-                    style={{ cursor: "pointer" }}
-                  />
-                );
-              })}
-
-              {points.map((point) => (
-                <Marker
-                  key={point.id}
-                  coordinates={[point.lng, point.lat]}
+              <div
+                style={{
+                  transform: `translate(${mapTransform.x}px, ${mapTransform.y}px) scale(${mapTransform.scale})`,
+                  transformOrigin: "center center",
+                  width: "100%",
+                  height: "100%",
+                }}
+              >
+                <ComposableMap
+                  width={dimensions.width}
+                  height={dimensions.height}
+                  projection="geoEqualEarth"
+                  projectionConfig={{ scale: MAP_PROJECTION_SCALE }}
+                  style={{ width: "100%", height: "100%", display: "block" }}
                 >
-                  <g
-                    onMouseEnter={() => setHoveredThreatId(point.id)}
-                    onMouseLeave={() => setHoveredThreatId(null)}
-                    onClick={() => {
-                      setSelectedThreatId(point.id);
-                      onSelectThreat?.(point.threat);
-                    }}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <circle
-                      r={MAP_SOURCE_POINT_RADIUS + 2}
-                      fill={point.color}
-                      opacity={0.18}
-                    />
-                    <circle
-                      r={MAP_SOURCE_POINT_RADIUS}
-                      fill={point.color}
-                    />
-                  </g>
-                </Marker>
-              ))}
+                  <Sphere id="map-sphere" fill="#dbeafe" stroke="#bfdbfe" strokeWidth={0.5} />
+                  <Graticule stroke={MAP_GRATICULE_STROKE} />
+                  <Geographies geography={MAP_GEOGRAPHY_URL}>
+                    {({ geographies }) =>
+                      geographies.map((geo) => (
+                        <Geography
+                          key={geo.rsmKey}
+                          geography={geo}
+                          fill={MAP_COUNTRY_FILL}
+                          stroke={MAP_COUNTRY_STROKE}
+                          strokeWidth={0.5}
+                          style={{ default: { outline: "none" }, hover: { outline: "none", fill: "#cbd5e1" }, pressed: { outline: "none" } }}
+                        />
+                      ))
+                    }
+                  </Geographies>
 
-              {activeHqs.map((hq) => (
-                <Marker
-                  key={hq.id}
-                  coordinates={[hq.lon, hq.lat]}
-                >
-                  <g>
-                    <circle
-                      r={MAP_HQ_POINT_RADIUS * 1.7}
-                      fill="none"
-                      stroke={hq.accent}
-                      strokeOpacity={0.34}
-                    />
-                    <circle
-                      r={MAP_HQ_POINT_RADIUS}
-                      fill={hq.accent}
-                    />
-                    <text
-                      x={MAP_HQ_POINT_RADIUS + 6}
-                      y={-MAP_HQ_POINT_RADIUS - 2}
-                      fill={hq.accent}
-                      fontSize="11"
-                      letterSpacing="0.14em"
-                      style={{ pointerEvents: "none" }}
-                    >
-                      {hq.name}
-                    </text>
-                  </g>
-                </Marker>
-              ))}
+                  {/* Routes */}
+                  {arcs.map((arc) => {
+                    const highlighted = hoveredId === arc.id || selectedId === arc.id;
+                    return (
+                      <Line
+                        key={arc.id}
+                        from={[arc.startLng, arc.startLat]}
+                        to={[arc.endLng, arc.endLat]}
+                        stroke={arc.color}
+                        strokeWidth={Math.max(arc.stroke * MAP_ROUTE_STROKE_MULTIPLIER, 1)}
+                        strokeOpacity={highlighted ? 1 : 0.7}
+                        strokeLinecap="round"
+                        strokeDasharray={highlighted ? undefined : "8 6"}
+                        onMouseEnter={() => setHoveredId(arc.id)}
+                        onMouseLeave={() => setHoveredId(null)}
+                        onClick={() => {
+                          if (!mapDragRef.current.moved) handleSelectThreat(arc.threat);
+                        }}
+                        style={{ cursor: "pointer", pointerEvents: "auto" }}
+                      />
+                    );
+                  })}
 
-              {recentPointLabels.map((point) => (
-                <Marker
-                  key={`label-${point.id}`}
-                  coordinates={[point.lng, point.lat]}
-                >
-                  <text
-                    x={MAP_SOURCE_POINT_RADIUS + 5}
-                    y={MAP_SOURCE_POINT_RADIUS + 10}
-                    fill="rgba(226,232,240,0.82)"
-                    fontSize="10"
-                    style={{ pointerEvents: "none" }}
-                  >
-                    {point.threat.src_geo.city}
-                  </text>
-                </Marker>
-              ))}
-            </ComposableMap>
-          </div>
-        )}
+                  {/* Source points */}
+                  {points.map((pt) => (
+                    <Marker key={pt.id} coordinates={[pt.lng, pt.lat]}>
+                      <g
+                        onMouseEnter={() => setHoveredId(pt.id)}
+                        onMouseLeave={() => setHoveredId(null)}
+                        onClick={() => { if (!mapDragRef.current.moved) handleSelectThreat(pt.threat); }}
+                        style={{ cursor: "pointer" }}
+                      >
+                        <circle r={MAP_SOURCE_POINT_RADIUS + 3} fill={pt.color} opacity={0.15} />
+                        <circle r={MAP_SOURCE_POINT_RADIUS} fill={pt.color} />
+                      </g>
+                    </Marker>
+                  ))}
 
-        <PreviewOverlay
+                  {/* HQ nodes */}
+                  {activeHqs.map((hq) => (
+                    <Marker key={hq.id} coordinates={[hq.lon, hq.lat]}>
+                      <g>
+                        <circle r={MAP_HQ_POINT_RADIUS * 1.8} fill="none" stroke={hq.accent} strokeOpacity={0.3} />
+                        <circle r={MAP_HQ_POINT_RADIUS} fill={hq.accent} />
+                        <text
+                          x={MAP_HQ_POINT_RADIUS + 6}
+                          y={-MAP_HQ_POINT_RADIUS}
+                          fill={hq.accent}
+                          fontSize="10"
+                          fontWeight="600"
+                          letterSpacing="0.04em"
+                          style={{ pointerEvents: "none", userSelect: "none" }}
+                        >
+                          {hq.name}
+                        </text>
+                      </g>
+                    </Marker>
+                  ))}
+
+                  {/* City labels */}
+                  {recentLabels.map((pt) => (
+                    <Marker key={`lbl-${pt.id}`} coordinates={[pt.lng, pt.lat]}>
+                      <text
+                        x={MAP_SOURCE_POINT_RADIUS + 5}
+                        y={MAP_SOURCE_POINT_RADIUS + 9}
+                        fill="#64748b"
+                        fontSize="9"
+                        style={{ pointerEvents: "none", userSelect: "none" }}
+                      >
+                        {pt.threat.src_geo.city}
+                      </text>
+                    </Marker>
+                  ))}
+                </ComposableMap>
+              </div>
+            </div>
+          </>
+        ) : null}
+
+        {/* Compact route preview strip */}
+        <RoutePreview
           threat={previewThreat}
-          isPinned={previewPinned}
+          onOpen={() => { if (previewThreat) handleSelectThreat(previewThreat); }}
         />
       </div>
     </section>
