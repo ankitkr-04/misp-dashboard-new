@@ -124,8 +124,8 @@ function ModeToggle({
       type="button"
       onClick={onClick}
       className={`cursor-pointer rounded-xl border p-4 text-left transition ${active
-          ? "border-blue-300 bg-blue-50 ring-1 ring-blue-200"
-          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+        ? "border-blue-300 bg-blue-50 ring-1 ring-blue-200"
+        : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
         }`}
     >
       <div className="flex items-center gap-2">
@@ -157,8 +157,8 @@ function HqCard({
     <button
       type="button"
       className={`cursor-pointer rounded-lg border p-4 text-left transition ${active
-          ? "border-slate-300 bg-slate-50 shadow-sm"
-          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+        ? "border-slate-300 bg-slate-50 shadow-sm"
+        : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
         }`}
       onClick={onClick}
     >
@@ -174,8 +174,8 @@ function HqCard({
         </div>
         <span
           className={`rounded-full border px-2 py-0.5 text-xs font-medium ${active
-              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-              : "border-slate-200 bg-white text-slate-500"
+            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+            : "border-slate-200 bg-white text-slate-500"
             }`}
         >
           {active ? "Active" : "Inactive"}
@@ -347,10 +347,10 @@ export default function AdminControlCenter({
         </motion.div>
 
         {/* Main grid */}
-        <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
+        <div className="grid gap-5 xl:grid-cols-2">
 
           {/* Operating Mode */}
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="min-w-0">
             <SectionCard
               title="Operating Mode"
               description="Controls which data pipeline is active. Demo uses the in-memory generator; Live pulls real indicators."
@@ -380,8 +380,8 @@ export default function AdminControlCenter({
                   </div>
                   <span
                     className={`rounded-full border px-2.5 py-1 text-xs font-medium ${state.ai_features_enabled
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                        : "border-slate-200 bg-slate-100 text-slate-500"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border-slate-200 bg-slate-100 text-slate-500"
                       }`}
                   >
                     {state.ai_features_enabled ? "Enabled" : "Disabled"}
@@ -433,7 +433,7 @@ export default function AdminControlCenter({
           </motion.div>
 
           {/* HQ Mesh */}
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="min-w-0">
             <SectionCard
               title="HQ Mesh"
               description="Threat events are routed to selected command centers. Active in both demo and live mode."
@@ -443,7 +443,7 @@ export default function AdminControlCenter({
                 </span>
               }
             >
-              <div className="grid gap-2.5 sm:grid-cols-2">
+              <div className="grid gap-2.5 sm:grid-cols-2 [&>*]:min-w-0">
                 {catalog.hqs.map((hq) => (
                   <HqCard
                     key={hq.id}
@@ -463,8 +463,8 @@ export default function AdminControlCenter({
 
         {/* Demo-specific controls */}
         {isDemoMode ? (
-          <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="grid gap-5 xl:grid-cols-2">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="min-w-0">
               <SectionCard
                 title="Simulation Profile"
                 description="Sets the threat-type distribution for synthetic event generation."
@@ -506,7 +506,7 @@ export default function AdminControlCenter({
               </SectionCard>
             </motion.div>
 
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="min-w-0">
               <SectionCard
                 title="Threat Shaping"
                 description="Filter the event stream to a specific threat type or severity range for demonstrations."
@@ -566,8 +566,8 @@ export default function AdminControlCenter({
 
         {/* Live feed controls */}
         {!isDemoMode ? (
-          <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="grid gap-5 xl:grid-cols-2">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="min-w-0">
               <SectionCard
                 title="Live Feed"
                 description="Select the real-time intelligence source and control how frequently indicators are fetched and released."
@@ -643,7 +643,7 @@ export default function AdminControlCenter({
               </SectionCard>
             </motion.div>
 
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="min-w-0">
               <SectionCard title="Feed Status" description="Current state of the live indicator cache.">
                 <div className="grid gap-2.5 sm:grid-cols-2">
                   <StatTile
