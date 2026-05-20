@@ -7,3 +7,4 @@ misp-dashboard/**/*.pyc
 misp-dashboard/.DS_Store
 
 .vscode/
+.agents/
